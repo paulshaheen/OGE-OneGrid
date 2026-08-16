@@ -103,7 +103,7 @@ async function foundryChat(body) {
 // ── Azure AI Foundry: list deployed models for the selector ───────────────
 function parseModelsList(str) {
     return String(str).split(',').map(s => s.trim()).filter(Boolean).map(entry => {
-        const [id, name, vendor] = entry.split('|').map(x => (x || '').trim());
+        const [id, name, vendor] = entry.split(/[|~]/).map(x => (x || '').trim());
         return { id, name: name || id, vendor: vendor || '' };
     });
 }

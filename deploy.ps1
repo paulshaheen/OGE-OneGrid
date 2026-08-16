@@ -714,7 +714,7 @@ function Phase-ChatAgent {
   az provider register -n Microsoft.App --wait 1>$null 2>$null
 
   $sub = $cfg.subscriptionId
-  $models = ($cfg.foundry.models | ForEach-Object { "$($_.deployment)|$($_.deployment)|$($_.format)" }) -join ", "
+  $models = ($cfg.foundry.models | ForEach-Object { "$($_.deployment)~$($_.deployment)~$($_.format)" }) -join ", "
   $envVars = @(
     "AI_PROVIDER=foundry",
     "AZURE_AI_ENDPOINT=$($state.FoundryEndpoint.TrimEnd('/'))",
@@ -797,13 +797,21 @@ function Phase-ChatAgent {
     }
     if (-not $envReady) { Log "  env not ready in $loc - trying next region" "Yellow"; continue }
     Log "  creating container app '$app' in $loc ..."
-    az containerapp create -n $app -g $rg --environment $envName `
+    $createOut = az containerapp create -n $app -g $rg --environment $envName `
       --image $imageRef --registry-server "$acrName.azurecr.io" --registry-username $acrUser --registry-password $acrPass `
       --target-port 8080 --ingress external --min-replicas 1 --max-replicas 1 --cpu 1 --memory 2Gi `
-      --env-vars @envVars -o none 2>&1 | Out-Null
-    $fqdn = AzTry { az containerapp show -n $app -g $rg --query properties.configuration.ingress.fqdn -o tsv }
+      --env-vars @envVars -o none 2>&1
+    # Poll briefly for the ingress FQDN (populates within seconds of a successful create).
+    $fqdn = $null
+    for ($k=0; $k -lt 12; $k++) {
+      $fqdn = AzTry { az containerapp show -n $app -g $rg --query properties.configuration.ingress.fqdn -o tsv }
+      if ($fqdn) { break }
+      if ((AzTry { az containerapp show -n $app -g $rg --query properties.provisioningState -o tsv }) -eq 'Failed') { break }
+      Start-Sleep -Seconds 5
+    }
     if ($fqdn) { $appOk = $true; $state.ChatAgentLocation = $loc; $state.ChatAgentEnv = $envName; break }
-    Log "  container app not up in $loc - trying next region" "Yellow"
+    $ce = ("$createOut" -split "`n" | Where-Object { $_ -match 'ERROR|not recognized|Bad Request|denied|Quota' } | Select-Object -First 1)
+    Log "  container app not up in $loc$(if($ce){" - $($ce.Trim())"}) - trying next region" "Yellow"
   }
   if (-not $appOk) {
     $state.ChatAgentFailed = $true
