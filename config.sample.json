@@ -1,0 +1,43 @@
+{
+  "//": "Copy to config.json and fill in. All resources are created fresh in YOUR tenant.",
+
+  "subscriptionId": "",
+  "location": "eastus2",
+
+  "fabric": {
+    "//capacityId": "REQUIRED. Existing Fabric capacity resource id or capacity GUID. A workspace cannot be created without a capacity (F-SKU or Trial).",
+    "capacityId": "",
+    "workspaceName": "OneGrid",
+    "lakehouseName": "lh_poc",
+    "eventhouseName": "pi-realtime-eventhouse",
+    "kqlDatabaseName": "pi-realtime-db",
+    "factWindowDays": 30,
+    "//siteCount": "OPTIONAL. Number of extra synthetic sites to fan out from the reference site after data load (0 = single reference site only). Each new site is healthy/stable; capped at the built-in site catalog (12).",
+    "siteCount": 8
+  },
+
+  "//fixedIdentity": "OPTIONAL. A service principal (with a client secret) used as the Import semantic model's data-source identity so it can refresh from the Lakehouse SQL endpoint. If provided, deploy binds a connection + refreshes automatically; otherwise do it manually (see README).",
+  "fixedIdentity": {
+    "tenantId": "",
+    "clientId": "",
+    "clientSecret": ""
+  },
+
+  "foundry": {
+    "resourceGroup": "rg-onegrid-solution",
+    "accountName": "onegrid-foundry",
+    "defaultModel": "gpt-4o",
+    "//models": "Deployment name | catalog model | version | format | capacity",
+    "models": [
+      { "deployment": "gpt-4o",           "model": "gpt-4o",     "version": "2024-11-20", "format": "OpenAI", "capacity": 100 },
+      { "deployment": "gpt-4.1",          "model": "gpt-4.1",    "version": "2025-04-14", "format": "OpenAI", "capacity": 100 },
+      { "deployment": "gpt-5-mini",       "model": "gpt-5-mini", "version": "2025-08-07", "format": "OpenAI", "capacity": 150 }
+    ]
+  },
+
+  "chatAgent": {
+    "resourceGroup": "rg-onegrid-solution",
+    "appName": "onegrid-app",
+    "environmentName": "onegrid-app-env"
+  }
+}

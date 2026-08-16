@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Predictive Maintenance">
+  <defs>
+    <linearGradient id="pm-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2ad4c1"/>
+      <stop offset="1" stop-color="#8250df"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="94" height="94" rx="22" fill="url(#pm-grad)"/>
+  <path d="M13 57 H35 L43 31 L53 75 L61 47 H87"
+        fill="none" stroke="#ffffff" stroke-width="8.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="87" cy="47" r="6.5" fill="#ffffff"/>
+  <circle cx="87" cy="47" r="3" fill="#ff5470"/>
+</svg>

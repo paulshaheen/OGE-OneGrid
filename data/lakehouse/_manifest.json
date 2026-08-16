@@ -1,0 +1,512 @@
+[
+  {
+    "schema": "dbo",
+    "table": "bridge_pi_tag_to_asset",
+    "rows": 644,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "bridge_pi_tag_to_equipment",
+    "rows": 644,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_acronym_dictionary",
+    "rows": 130,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_aimm_hierarchy",
+    "rows": 284673,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_date",
+    "rows": 6209,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_equipment",
+    "rows": 4671,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_equipment_xref",
+    "rows": 43,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_gads_event_equipment",
+    "rows": 2253,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_gads_event_equipment_xref",
+    "rows": 14912,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_gads_unmatched_events",
+    "rows": 714,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_icare_to_aimm_map",
+    "rows": 902,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_pi_to_aimm_map",
+    "rows": 1902,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_pi_to_icare_candidates",
+    "rows": 1686,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_pi_to_icare_map",
+    "rows": 43,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "dim_unit_mapping",
+    "rows": 2,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "fact_work_requests",
+    "rows": 26545,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_availability_statistic",
+    "rows": 213,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_contribution_factor",
+    "rows": 111,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_corrective_action",
+    "rows": 13,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_equip_type",
+    "rows": 160,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_equip_type_outage",
+    "rows": 1528,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_event_cause_code",
+    "rows": 1646,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_event_contribution_code",
+    "rows": 4,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_event_log",
+    "rows": 76473,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_event_type",
+    "rows": 22,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_events_enriched",
+    "rows": 89587,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_failure_analysis_event",
+    "rows": 1270,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_failure_location",
+    "rows": 5,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_failure_mechanism",
+    "rows": 27,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_failure_mode",
+    "rows": 17,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_failure_type",
+    "rows": 34,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_fuel_id",
+    "rows": 22,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_generation_type",
+    "rows": 2,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_organization",
+    "rows": 220,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_pending_event",
+    "rows": 8,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_unit_configuration",
+    "rows": 139,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_unit_event",
+    "rows": 89587,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "gads_unit_type",
+    "rows": 9,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "icare_analyses",
+    "rows": 76483,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "icare_assets",
+    "rows": 72198,
+    "parts": 1
+  },
+  {
+    "schema": "dbo",
+    "table": "pi_tags_metadata",
+    "rows": 645,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "bridge_gads_event_to_asset",
+    "rows": 8,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "bridge_pi_tag_to_asset",
+    "rows": 644,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "daily_survival_labels",
+    "rows": 1098,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "dim_aimm_hierarchy",
+    "rows": 284673,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "dim_asset",
+    "rows": 3,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "dim_date",
+    "rows": 6209,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "dim_equipment",
+    "rows": 4671,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "dim_scope_asset",
+    "rows": 3,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "downtime_history",
+    "rows": 14,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "fact_gads_event",
+    "rows": 3625,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "fact_work_requests",
+    "rows": 26545,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "failure_cause_categories",
+    "rows": 39,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "model_predictions_longterm",
+    "rows": 6,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "running_indicator",
+    "rows": 3,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "sensor_correlation_ranking",
+    "rows": 67,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "aakr_episodes",
+    "rows": 170,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "aakr_health",
+    "rows": 86,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "aakr_memory",
+    "rows": 4553,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "aakr_metadata",
+    "rows": 3,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "aakr_scores",
+    "rows": 324611,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "anomaly_advisories",
+    "rows": 1085,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "anomaly_baselines",
+    "rows": 2162,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "anomaly_multivariate",
+    "rows": 330,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "daily_narrative",
+    "rows": 1,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "degradation_longterm",
+    "rows": 0,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "drivers_longterm",
+    "rows": 702,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "drivers_shortterm",
+    "rows": 7920,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "labels",
+    "rows": 110256,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "predictions_longterm",
+    "rows": 71,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "predictions_shortterm",
+    "rows": 396,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "root_cause",
+    "rows": 5,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "selected_tags",
+    "rows": 53,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "training_shortterm",
+    "rows": 41306,
+    "parts": 1
+  },
+  {
+    "schema": "ml",
+    "table": "watchlist",
+    "rows": 1710,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "fact_icare_measurement",
+    "rows": 1590668,
+    "parts": 1
+  },
+  {
+    "schema": "gold",
+    "table": "fact_pi",
+    "rows": 35392049,
+    "parts": 18
+  },
+  {
+    "schema": "oge",
+    "table": "fact_oilreports",
+    "rows": 341,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "fact_workrequests",
+    "rows": 291,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "fact_smartsignals",
+    "rows": 455,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "fact_icare",
+    "rows": 723,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "fact_bfpperf",
+    "rows": 367,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "dim_equipment",
+    "rows": 297,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "fact_gads",
+    "rows": 299,
+    "parts": 1
+  },
+  {
+    "schema": "oge",
+    "table": "calendar",
+    "rows": 4018,
+    "parts": 1
+  }
+]

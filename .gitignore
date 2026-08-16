@@ -1,0 +1,22 @@
+# Local/secret config — never commit
+config.json
+last-deploy-state.json
+*.env
+
+# OS / tooling
+.DS_Store
+node_modules/
+__pycache__/
+*.pyc
+
+# Deploy scratch
+*.zip
+
+_tables_small.txt
+_tables_big.txt
+
+_deploy_*.log
+_gen-*.py
+
+# docs-site build artifact
+docs-site/dist/

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 600" font-family="Segoe UI,Helvetica,Arial,sans-serif">
+<rect x="0" y="0" width="1120" height="600" rx="10" fill="#1c2333"/>
+<line x1="322" y1="148" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="342" y1="291" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="715" y1="100" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="589" y1="549" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="450" y1="40" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="441" y1="427" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="754" y1="295" x2="631" y2="407" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="838" y1="397" x2="631" y2="407" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="473" y1="166" x2="602" y2="259" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="826" y1="196" x2="631" y2="407" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="631" y1="407" x2="441" y2="427" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="263" y1="430" x2="441" y2="427" stroke="#8b949e" stroke-width="2" stroke-dasharray="" opacity="0.5"/>
+<line x1="826" y1="196" x2="602" y2="259" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="838" y1="397" x2="602" y2="259" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="631" y1="407" x2="602" y2="259" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="754" y1="295" x2="602" y2="259" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="734" y1="511" x2="602" y2="259" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="734" y1="511" x2="631" y2="407" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="438" y1="560" x2="631" y2="407" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.38"/>
+<line x1="598" y1="40" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<line x1="715" y1="100" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<line x1="754" y1="295" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<line x1="263" y1="430" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<line x1="322" y1="148" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<line x1="734" y1="511" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<line x1="589" y1="549" x2="504" y2="312" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.26"/>
+<circle cx="838" cy="397" r="15" fill="#0d1117" stroke="#ff5470" stroke-width="2"/>
+<circle cx="838" cy="397" r="15" fill="#ff5470" opacity="0.18"/>
+<text x="838" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Anomaly Advisories</text>
+<circle cx="734" cy="511" r="15" fill="#0d1117" stroke="#ff5470" stroke-width="2"/>
+<circle cx="734" cy="511" r="15" fill="#ff5470" opacity="0.18"/>
+<text x="734" y="539" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Root Cause</text>
+<circle cx="589" cy="549" r="15" fill="#0d1117" stroke="#ff5470" stroke-width="2"/>
+<circle cx="589" cy="549" r="15" fill="#ff5470" opacity="0.18"/>
+<text x="589" y="577" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Watchlist</text>
+<circle cx="631" cy="407" r="22" fill="#0d1117" stroke="#a78bfa" stroke-width="3"/>
+<circle cx="631" cy="407" r="22" fill="#a78bfa" opacity="0.18"/>
+<text x="631" y="442" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Tag → Asset Bridge</text>
+<circle cx="438" cy="560" r="15" fill="#0d1117" stroke="#a78bfa" stroke-width="2"/>
+<circle cx="438" cy="560" r="15" fill="#a78bfa" opacity="0.18"/>
+<text x="438" y="588" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Selected Tags</text>
+<circle cx="602" cy="259" r="22" fill="#0d1117" stroke="#5aa9ff" stroke-width="3"/>
+<circle cx="602" cy="259" r="22" fill="#5aa9ff" opacity="0.18"/>
+<text x="602" y="294" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Asset</text>
+<circle cx="504" cy="312" r="15" fill="#0d1117" stroke="#5aa9ff" stroke-width="2"/>
+<circle cx="504" cy="312" r="15" fill="#5aa9ff" opacity="0.18"/>
+<text x="504" y="340" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Date</text>
+<circle cx="441" cy="427" r="15" fill="#0d1117" stroke="#5aa9ff" stroke-width="2"/>
+<circle cx="441" cy="427" r="15" fill="#5aa9ff" opacity="0.18"/>
+<text x="441" y="455" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Equipment</text>
+<circle cx="342" cy="291" r="15" fill="#0d1117" stroke="#ffcc4d" stroke-width="2"/>
+<circle cx="342" cy="291" r="15" fill="#ffcc4d" opacity="0.18"/>
+<text x="342" y="319" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">GADS Outages</text>
+<circle cx="263" cy="430" r="15" fill="#0d1117" stroke="#ffcc4d" stroke-width="2"/>
+<circle cx="263" cy="430" r="15" fill="#ffcc4d" opacity="0.18"/>
+<text x="263" y="458" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Work Requests</text>
+<circle cx="322" cy="148" r="15" fill="#0d1117" stroke="#ff8c42" stroke-width="2"/>
+<circle cx="322" cy="148" r="15" fill="#ff8c42" opacity="0.18"/>
+<text x="322" y="176" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Long-Term Survival</text>
+<circle cx="450" cy="40" r="15" fill="#0d1117" stroke="#ff8c42" stroke-width="2"/>
+<circle cx="450" cy="40" r="15" fill="#ff8c42" opacity="0.18"/>
+<text x="450" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Short-Term Stop Risk</text>
+<circle cx="598" cy="40" r="15" fill="#0d1117" stroke="#8ea3bd" stroke-width="2"/>
+<circle cx="598" cy="40" r="15" fill="#8ea3bd" opacity="0.18"/>
+<text x="598" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">Daily Narrative</text>
+<circle cx="473" cy="166" r="15" fill="#0d1117" stroke="#37e0d0" stroke-width="2"/>
+<circle cx="473" cy="166" r="15" fill="#37e0d0" opacity="0.18"/>
+<text x="473" y="194" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">AAKR Health</text>
+<circle cx="826" cy="196" r="15" fill="#0d1117" stroke="#37e0d0" stroke-width="2"/>
+<circle cx="826" cy="196" r="15" fill="#37e0d0" opacity="0.18"/>
+<text x="826" y="224" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">AAKR Residuals</text>
+<circle cx="715" cy="100" r="15" fill="#0d1117" stroke="#37e0d0" stroke-width="2"/>
+<circle cx="715" cy="100" r="15" fill="#37e0d0" opacity="0.18"/>
+<text x="715" y="128" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">iCare Measurements</text>
+<circle cx="754" cy="295" r="15" fill="#0d1117" stroke="#37e0d0" stroke-width="2"/>
+<circle cx="754" cy="295" r="15" fill="#37e0d0" opacity="0.18"/>
+<text x="754" y="323" text-anchor="middle" font-size="11" font-weight="700" fill="#e6edf3">PI Telemetry</text>
+<g transform="translate(20,530)">
+<circle cx="6" cy="0" r="6" fill="#5aa9ff"/><text x="16" y="4" font-size="11" fill="#c7d3e2">Dimension</text>
+<circle cx="109" cy="0" r="6" fill="#a78bfa"/><text x="119" y="4" font-size="11" fill="#c7d3e2">Bridge</text>
+<circle cx="191" cy="0" r="6" fill="#37e0d0"/><text x="201" y="4" font-size="11" fill="#c7d3e2">Telemetry</text>
+<circle cx="294" cy="0" r="6" fill="#ffcc4d"/><text x="304" y="4" font-size="11" fill="#c7d3e2">Events</text>
+<circle cx="376" cy="0" r="6" fill="#ff8c42"/><text x="386" y="4" font-size="11" fill="#c7d3e2">ML Scoring</text>
+<circle cx="486" cy="0" r="6" fill="#ff5470"/><text x="496" y="4" font-size="11" fill="#c7d3e2">Advisory</text>
+<circle cx="582" cy="0" r="6" fill="#8ea3bd"/><text x="592" y="4" font-size="11" fill="#c7d3e2">Narrative</text>
+</g>
+</svg>
