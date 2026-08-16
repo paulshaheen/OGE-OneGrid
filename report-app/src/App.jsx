@@ -36,7 +36,7 @@ export default function App() {
       <header className={`relative z-20 flex items-center gap-4 px-4 sm:px-6 h-14 ${theme.nav}`}>
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg grid place-items-center font-black text-sm"
-            style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.chart.series[1]})`, color: theme.mode === 'light' ? '#fff' : '#0a0f14' }}>PM</div>
+            style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.chart.series[1]})`, color: theme.mode === 'light' ? '#fff' : '#0a0f14' }}>OG</div>
           <div className="leading-tight">
             <div className={`text-sm font-bold ${theme.heading}`}>OneGrid</div>
             <div className={`text-[10px] uppercase tracking-widest ${theme.sub}`}>{PERSONAS.find((p) => p.id === personaId)?.tagline}</div>

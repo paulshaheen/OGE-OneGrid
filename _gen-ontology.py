@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Predictive-Maintenance knowledge graph (ontology) from the
+"""Generate the OneGrid knowledge graph (ontology) from the
 Fabric semantic model TMDL, so the graph stays in sync with the real Fabric
 data model. Emits report-app/server/ontology.json (nodes + edges + metadata).
 
@@ -282,7 +282,7 @@ def main():
     out = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "source": "semantic-main",
-        "title": "Predictive Maintenance Knowledge Graph",
+        "title": "OneGrid Knowledge Graph",
         "categories": CATEGORIES,
         "nodes": sorted(nodes, key=lambda n: (n["category"], n["id"])),
         "edges": edges,

@@ -464,6 +464,15 @@ function dirSizeMB(dir) {
   return total / (1024 * 1024);
 }
 
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.log(`\n  The deployment wizard is already running at http://localhost:${PORT}`);
+    console.log(`  Open that URL in your browser, or close the other wizard window to restart.\n`);
+    process.exit(0);
+  }
+  console.error('  Wizard server error:', (err && err.message) ? err.message : err);
+  process.exit(1);
+});
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  Deployment wizard:  http://localhost:${PORT}\n`);
 });

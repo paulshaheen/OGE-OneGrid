@@ -473,7 +473,7 @@ async function correlateSensors(args) {
 }
 
 // ── GitHub Copilot API ───────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are a power plant OneGrid analyst for Contoso's generation fleet. You have access to real-time sensor data (PI), maintenance work orders (AIMM), and ML anomaly scores stored in Microsoft Fabric.
+const SYSTEM_PROMPT = `You are OneGrid Analyst, a power-plant analyst for the OneGrid generation fleet. You have access to real-time sensor data (PI), maintenance work orders (AIMM), and ML anomaly scores stored in Microsoft Fabric.
 
 AVAILABLE DATA TOOLS:
 - query_kql: Eventhouse (PiEvents, AimmWorkRequestsRaw, SmartSignalIncidents, IcareEvents, GadsEvents, PCIOutages)
@@ -581,7 +581,7 @@ AIMM WORK REQUESTS (KQL table: AimmWorkRequestsRaw):
 - FALLBACK: if an equipment keyword filter returns 0 rows, drop the equipment filter and show that unit's recent WRs (parent_descr == "Unit N"), and tell the user you widened to unit level. Only report "no records" after the unit-level query is also empty.
 
 PCI / GADS / OUTAGES (KQL table: PCIOutages):
-- Users call this data "PCI", "GADS", or "Outages" — all three refer to the PCIOutages table. It holds MISO outage & derate events for the ENTIRE Contoso fleet (every plant), one row per outage/derate request.
+- Users call this data "PCI", "GADS", or "Outages" — all three refer to the PCIOutages table. It holds MISO outage & derate events for the ENTIRE OneGrid fleet (every plant), one row per outage/derate request.
 - Key columns: unit_name (e.g. "IRE.L_RIVERTON3"), plant (e.g. "Riverton"), event_type ("MOOS - MISO Outage" = full outage; "MDE - MISO Derate" = partial derate), mw (real, MW impact), begin_date, end_date, planned_start, planned_end (datetime, UTC), reason (free-text why the unit is out), cause_code, outage_status (Completed / Implemented [currently out] / Submitted / Cancelled / Study / Approved), priority (Forced / Urgent / Emergency / Planned), approved, modified_on, edition, unit_category.
 - UNIT MAPPING: "RV3" / "Riverton 3" / "LG Unit 3" = unit_name "IRE.L_RIVERTON3"; "RV2" = "IRE.L_RIVERTON2" (both plant == "Riverton"). IMPORTANT: use contains or ==, NOT the has operator — KQL has matches whole tokens so (unit_name has "RIVERTON") returns 0 because the token is "RIVERTON3". Match either LG unit with: plant == "Riverton"; a specific unit with unit_name == "IRE.L_RIVERTON3" or unit_name contains "RIVERTON3". Other units use PLANT.UNIT codes (e.g. IRE.Ashford1, IRA.BROOKSIDE1) — filter by plant == "<Plant>" or unit_name contains "<token>".
 - "Currently out" = outage_status == "Implemented" OR (begin_date <= now() and end_date >= now()). "Current + upcoming" = end_date >= now(). Completed rows are historical (still queryable — do not say "no outages" without checking history too).
@@ -855,17 +855,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // Serve the Contoso "e" logo mark (used for header + favicon)
-    if (req.method === 'GET' && (req.url === '/contoso-e.png' || req.url === '/favicon.ico')) {
-        try {
-            const png = fs.readFileSync(path.join(__dirname, 'contoso-e.png'));
-            res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' });
-            res.end(png);
-        } catch (e) {
-            res.writeHead(404); res.end('logo not found');
-        }
-        return;
-    }
+    // (Header logo + favicon are inline in chat.html - no image route needed.)
 
     // Health probe for App Service / Container Apps
     if (req.method === 'GET' && (req.url === '/healthz' || req.url === '/api/health')) {

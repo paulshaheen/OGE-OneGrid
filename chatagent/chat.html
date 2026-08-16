@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contoso Analyst</title>
-<link rel="icon" type="image/png" href="/contoso-e.png">
+<title>OneGrid Analyst</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2354C36A'/%3E%3Cstop offset='0.5' stop-color='%2312A8A0'/%3E%3Cstop offset='1' stop-color='%231488C9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Ctext x='16' y='22' font-family='Segoe UI,Arial' font-size='15' font-weight='700' text-anchor='middle' fill='white'%3EOG%3C/text%3E%3C/svg%3E">
 <style>
 :root {
   --red:#C8102E; --red-dark:#A20D25; --gold:#FFB81C; --gold-dark:#b8860b;
@@ -18,6 +18,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif
 header { padding:14px 20px; display:flex; align-items:center; gap:12px; background:var(--surface); border-top:3px solid var(--red); border-bottom:1px solid var(--border); }
 header .logo { height:36px; flex-shrink:0; display:flex; align-items:center; }
 header .logo img { height:34px; width:auto; display:block; }
+header .logo-mark { height:34px; width:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; letter-spacing:-0.5px; color:#fff; background:linear-gradient(135deg,#54C36A,#12A8A0,#1488C9); }
 header .brand { display:flex; flex-direction:column; line-height:1.15; }
 header h1 { font-size:17px; font-weight:700; letter-spacing:-0.2px; }
 header .tagline { font-size:11px; color:var(--muted); font-weight:500; }
@@ -119,10 +120,10 @@ header .badge::before { content:''; width:7px; height:7px; border-radius:50%; ba
 <div class="app">
 <header>
     <span class="logo">
-        <img src="/contoso-e.png" alt="Contoso" />
+        <span class="logo-mark" aria-label="OneGrid">OG</span>
     </span>
     <div class="brand">
-        <h1>Contoso Analyst</h1>
+        <h1>OneGrid Analyst</h1>
         <span class="tagline">Plant Intelligence &middot; Powered by<svg class="fabric-ico" viewBox="0 0 32 32" width="14" height="14" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Microsoft Fabric"><defs><linearGradient id="msf" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#54C36A"/><stop offset="0.55" stop-color="#12A8A0"/><stop offset="1" stop-color="#1488C9"/></linearGradient></defs><rect x="4" y="10" width="12" height="12" rx="3" transform="rotate(45 10 16)" fill="#2FB2B2" opacity="0.92"/><rect x="13" y="4" width="12" height="12" rx="3" transform="rotate(45 19 10)" fill="#57C06A" opacity="0.9"/><rect x="12" y="12" width="12" height="12" rx="3" transform="rotate(45 18 18)" fill="url(#msf)"/></svg>Microsoft Fabric</span>
     </div>
     <div class="header-right">
@@ -140,7 +141,7 @@ header .badge::before { content:''; width:7px; height:7px; border-radius:50%; ba
 
 <div class="chat-container" id="chat">
     <div class="message assistant">
-        <p>I'm <strong>Contoso Analyst</strong>, your plant data assistant. I can query PI sensor data, AIMM work requests, SmartSignal advisories, and ML predictions in real time. Ask me about equipment health, anomalies, or root causes.</p>
+        <p>I'm <strong>OneGrid Analyst</strong>, your plant data assistant. I can query PI sensor data, AIMM work requests, SmartSignal advisories, and ML predictions in real time. Ask me about equipment health, anomalies, or root causes.</p>
         <p style="margin-top:8px;color:var(--muted);font-size:12px;">I'll automatically query the right data sources, filter to running periods, and cross-reference maintenance records.</p>
     </div>
 </div>

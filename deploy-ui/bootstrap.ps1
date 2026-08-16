@@ -87,6 +87,16 @@ Write-Host "   >> Opening http://localhost:$Port" -ForegroundColor Green
 Write-Host "   >> Keep this window open while you use the wizard. Close it to stop." -ForegroundColor DarkGray
 Write-Host ''
 
+# If the wizard is already running on this port, just open it and stop (no second instance).
+$already = $false
+try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',[int]$Port); $c.Close(); $already = $true } catch {}
+if ($already) {
+  Write-Host "   The wizard is already running on port $Port - opening it in your browser." -ForegroundColor Yellow
+  Write-Host "   (To restart fresh, close the other wizard window first.)" -ForegroundColor DarkGray
+  Start-Process "http://localhost:$Port"
+  return
+}
+
 # open the browser only once the server is actually accepting connections
 Start-Job -ArgumentList $Port -ScriptBlock {
   param($p)
