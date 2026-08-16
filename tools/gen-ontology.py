@@ -13,7 +13,7 @@ import re
 import sys
 from datetime import datetime, timezone
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TABLES_DIR = os.path.join(ROOT, "fabric", "semanticmodel", "semantic-main", "definition", "tables")
 REL_FILE = os.path.join(ROOT, "fabric", "semanticmodel", "semantic-main", "definition", "relationships.tmdl")
 OUT_FILE = os.path.join(ROOT, "report-app", "server", "ontology.json")

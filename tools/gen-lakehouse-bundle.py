@@ -6,7 +6,7 @@ import pyarrow.compute as pc
 
 WS  = "163ba38c-3869-406f-adb7-37cbc981390c"
 LH  = "7e08480c-cf8d-4206-901d-38b74dbe35d9"
-OUT = r"C:\Users\paulshaheen\PredictiveMaintenanceDemo\PredictiveMaintenanceSolution\data\lakehouse"
+OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "lakehouse")
 FACT_WINDOW_DAYS = 30
 BIG = {"fact_pi", "fact_icare_measurement"}
 SKIP = {"pi_data", "icare_datapoints", "icare_datapoints_enriched"}   # raw intermediates; curated gold/ml versions are bundled

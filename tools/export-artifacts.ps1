@@ -1,9 +1,9 @@
 ﻿# Exports all deployable Fabric item definitions from the source workspace into
-# PredictiveMaintenanceSolution/fabric/, base64-decoding each part to real files.
+# the repo's fabric/ folder, base64-decoding each part to real files.
 # Run once (authoring-side) to (re)generate the bundled artifact definitions.
 param(
   [string]$SourceWorkspace = "163ba38c-3869-406f-adb7-37cbc981390c",
-  [string]$OutRoot = "C:\Users\paulshaheen\PredictiveMaintenanceDemo\PredictiveMaintenanceSolution\fabric"
+  [string]$OutRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) "fabric")
 )
 $ErrorActionPreference = "Stop"
 function FToken { az account get-access-token --resource "https://api.fabric.microsoft.com" --query accessToken -o tsv }

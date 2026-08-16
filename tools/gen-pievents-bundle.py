@@ -4,7 +4,7 @@ import pyarrow as pa, pyarrow.parquet as pq
 CLUSTER = "https://trd-8a08ckb2duw406mvvg.z2.kusto.fabric.microsoft.com"
 DB      = "pi-realtime-db"
 TABLE   = "PiEvents"
-OUT     = r"C:\Users\paulshaheen\PredictiveMaintenanceDemo\PredictiveMaintenanceSolution\data\eventhouse\PiEvents"
+OUT     = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "eventhouse", "PiEvents")
 
 # Data is concentrated in a few dense periods; chunk those finely, bulk the sparse tail.
 DENSE = [

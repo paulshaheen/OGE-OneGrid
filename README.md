@@ -281,7 +281,7 @@ against the `semantic-oge` model in the Fabric service.
 ## Notes & limits
 - **Parameterization:** exported artifacts contain source workspace/lakehouse/SQL/Kusto IDs
   that are **string-replaced** with the new target IDs during deploy (`$SRC` + `BuildDefinition`
-  in `deploy.ps1`). Re-export with `_export-artifacts.ps1`.
+  in `deploy.ps1`). Re-export with `tools/export-artifacts.ps1`.
 - **Eventstream / dataflow / KQL-dashboard** external bindings may need a one-time reconnect in
   the portal after deploy.
 - **Adding models** (Claude / GPT-5 / Llama…): deploy them to the Foundry account and they appear
