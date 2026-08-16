@@ -271,7 +271,13 @@ function Phase-Core {
         Invoke-RestMethod -Uri "$($state.KustoUri)/v1/rest/mgmt" -Method Post -Headers @{ Authorization="Bearer $(KustoTok $state.KustoUri)"; "Content-Type"="application/json" } -Body (@{ db=$cfg.fabric.kqlDatabaseName; csl=$seedCsl } | ConvertTo-Json) | Out-Null
         Log "  seeded synthetic outages (PCIOutages)" "Green"
       } else { Log "  synthetic outages already present ($seedCnt) - skipping" }
-    } catch { Log "  outage seed skipped: $($_.Exception.Message)" "Yellow" }
+    } catch {
+      if ($_.Exception.Message -match '\b400\b') {
+        Log "  NOTE (expected, harmless): demo outages not pre-seeded - the new KQL table is still warming up. They populate automatically when you click 'Launch Demo'. Continuing deployment." "DarkGray"
+      } else {
+        Log "  demo outages not pre-seeded ($($_.Exception.Message)) - non-fatal; they populate on 'Launch Demo'. Continuing." "DarkGray"
+      }
+    }
   }
 }
 
