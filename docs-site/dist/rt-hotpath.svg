@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 380" role="img" aria-label="Historian and ops data stream through forwarders and Eventstream into Eventhouse and Delta, feeding dashboards, scoring, and gold.">
+<defs><marker id="arw-gray" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#6e7681"/></marker><marker id="arw-blue" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#58a6ff"/></marker><marker id="arw-green" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#3fb950"/></marker><marker id="arw-purple" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#bc8cff"/></marker><marker id="arw-teal" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#39d2c0"/></marker><marker id="arw-orange" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#d29922"/></marker><marker id="arw-gold" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#e3b341"/></marker><marker id="arw-red" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#f85149"/></marker><marker id="arw-silver" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#aeb6c2"/></marker></defs>
+<rect x="0" y="0" width="1180" height="380" rx="12" fill="#0d1117"/>
+<path d="M174,97.0 H196.0 V97.0 H218" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M174,277.0 H196.0 V277.0 H218" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M378,97.0 H406 V187.0 H430" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M378,277.0 H406 V187.0 H430" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M590,187.0 H624 V97.0 H650" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M590,187.0 H624 V277.0 H650" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M810,97.0 H852 V65.0 H880" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M810,97.0 H852 V155.0 H880" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M820,277.0 H850.0 V277.0 H880" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M730.0,124 V200 H960.0 V250" fill="none" stroke="#39d2c0" stroke-width="1.7" marker-end="url(#arw-teal)"/>
+<rect x="24" y="70" width="150" height="54" rx="10" fill="#161b22" stroke="#39d2c0" stroke-width="1.6"/>
+<rect x="24" y="70" width="4" height="54" rx="2" fill="#39d2c0"/>
+<text x="99.0" y="94.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">PI Server</text>
+<text x="99.0" y="110.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">historian</text>
+<rect x="24" y="250" width="150" height="54" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="1.6"/>
+<rect x="24" y="250" width="4" height="54" rx="2" fill="#58a6ff"/>
+<text x="99.0" y="274.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Ops Data</text>
+<text x="99.0" y="290.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">SQL</text>
+<rect x="218" y="70" width="160" height="54" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.6"/>
+<rect x="218" y="70" width="4" height="54" rx="2" fill="#d29922"/>
+<text x="298.0" y="94.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">PI Forwarder</text>
+<text x="298.0" y="110.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">.NET 8</text>
+<rect x="218" y="250" width="160" height="54" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.6"/>
+<rect x="218" y="250" width="4" height="54" rx="2" fill="#d29922"/>
+<text x="298.0" y="274.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Ops Forwarder</text>
+<text x="298.0" y="290.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">.NET 8</text>
+<rect x="430" y="160" width="160" height="54" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="1.6"/>
+<rect x="430" y="160" width="4" height="54" rx="2" fill="#58a6ff"/>
+<text x="510.0" y="184.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Eventstream</text>
+<text x="510.0" y="200.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">hot ingest</text>
+<rect x="650" y="70" width="160" height="54" rx="10" fill="#161b22" stroke="#39d2c0" stroke-width="1.6"/>
+<rect x="650" y="70" width="4" height="54" rx="2" fill="#39d2c0"/>
+<text x="730.0" y="94.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Eventhouse</text>
+<text x="730.0" y="110.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">PM_Hot</text>
+<rect x="650" y="250" width="170" height="54" rx="10" fill="#161b22" stroke="#aeb6c2" stroke-width="1.6"/>
+<rect x="650" y="250" width="4" height="54" rx="2" fill="#aeb6c2"/>
+<text x="735.0" y="274.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Lakehouse Delta</text>
+<text x="735.0" y="290.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">PI gold delta</text>
+<rect x="880" y="40" width="180" height="50" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1.6"/>
+<rect x="880" y="40" width="4" height="50" rx="2" fill="#3fb950"/>
+<text x="970.0" y="69.5" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Real-Time Dashboard</text>
+<rect x="880" y="130" width="180" height="50" rx="10" fill="#161b22" stroke="#bc8cff" stroke-width="1.6"/>
+<rect x="880" y="130" width="4" height="50" rx="2" fill="#bc8cff"/>
+<text x="970.0" y="159.5" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Scoring notebooks</text>
+<rect x="880" y="250" width="160" height="54" rx="10" fill="#161b22" stroke="#e3b341" stroke-width="1.6"/>
+<rect x="880" y="250" width="4" height="54" rx="2" fill="#e3b341"/>
+<text x="960.0" y="274.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Gold</text>
+<text x="960.0" y="290.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">star schema</text>
+</svg>

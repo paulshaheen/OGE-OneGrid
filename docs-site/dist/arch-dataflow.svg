@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 430" role="img" aria-label="On-prem sources feed forwarders and the Bronze-Silver-Gold lakehouse; Eventhouse serves the hot path to dashboards.">
+<defs><marker id="arw-gray" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#6e7681"/></marker><marker id="arw-blue" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#58a6ff"/></marker><marker id="arw-green" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#3fb950"/></marker><marker id="arw-purple" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#bc8cff"/></marker><marker id="arw-teal" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#39d2c0"/></marker><marker id="arw-orange" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#d29922"/></marker><marker id="arw-gold" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#e3b341"/></marker><marker id="arw-red" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#f85149"/></marker><marker id="arw-silver" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 z" fill="#aeb6c2"/></marker></defs>
+<rect x="0" y="0" width="1160" height="430" rx="12" fill="#0d1117"/>
+<rect x="20" y="60" width="176" height="296" rx="14" fill="rgba(88,166,255,0.03)" stroke="#30363d" stroke-width="1.4" stroke-dasharray="5 4"/>
+<rect x="36" y="49" width="62.9" height="22" rx="11" fill="#1c2333" stroke="#30363d"/>
+<text x="67.45" y="64" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="0.3" fill="#8b949e">On-Prem</text>
+<rect x="392" y="44" width="748" height="344" rx="14" fill="rgba(88,166,255,0.03)" stroke="#30363d" stroke-width="1.4" stroke-dasharray="5 4"/>
+<rect x="408" y="33" width="123.2" height="22" rx="11" fill="#1c2333" stroke="#30363d"/>
+<text x="469.6" y="48" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="0.3" fill="#8b949e">Microsoft Fabric</text>
+<path d="M182,117.0 H406 V119.0 H418" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M182,193.0 H398 V119.0 H418" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M182,269.0 H200 V185.0 H214" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M182,193.0 H196 V269.0 H214" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M370,185.0 H394 V277.0 H418" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M370,269.0 H400 V277.0 H418" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M536,119.0 H547.0 V119.0 H558" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M676,119.0 H687.0 V119.0 H698" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M816,119.0 H832.0 V119.0 H848" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M988,119.0 H995.0 V119.0 H1002" fill="none" stroke="#6e7681" stroke-width="1.7" marker-end="url(#arw-gray)"/>
+<path d="M493.0,250 V200 H757.0 V146" fill="none" stroke="#39d2c0" stroke-width="1.7" marker-end="url(#arw-teal)"/>
+<path d="M568,277.0 H589.0 V277.0 H610" fill="none" stroke="#39d2c0" stroke-width="1.7" marker-end="url(#arw-teal)"/>
+<rect x="34" y="92" width="148" height="50" rx="10" fill="#161b22" stroke="#f85149" stroke-width="1.6"/>
+<rect x="34" y="92" width="4" height="50" rx="2" fill="#f85149"/>
+<text x="108.0" y="114.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Oracle</text>
+<text x="108.0" y="130.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">GADS</text>
+<rect x="34" y="168" width="148" height="50" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="1.6"/>
+<rect x="34" y="168" width="4" height="50" rx="2" fill="#58a6ff"/>
+<text x="108.0" y="190.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">SQL Server</text>
+<text x="108.0" y="206.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">condition monitoring</text>
+<rect x="34" y="244" width="148" height="50" rx="10" fill="#161b22" stroke="#39d2c0" stroke-width="1.6"/>
+<rect x="34" y="244" width="4" height="50" rx="2" fill="#39d2c0"/>
+<text x="108.0" y="266.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">PI Server</text>
+<text x="108.0" y="282.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">historian</text>
+<rect x="214" y="160" width="156" height="50" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.6"/>
+<rect x="214" y="160" width="4" height="50" rx="2" fill="#d29922"/>
+<text x="292.0" y="182.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">PI Forwarder</text>
+<text x="292.0" y="198.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">.NET service</text>
+<rect x="214" y="244" width="156" height="50" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.6"/>
+<rect x="214" y="244" width="4" height="50" rx="2" fill="#d29922"/>
+<text x="292.0" y="266.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Ops Forwarder</text>
+<text x="292.0" y="282.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">.NET service</text>
+<rect x="418" y="92" width="118" height="54" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.6"/>
+<rect x="418" y="92" width="4" height="54" rx="2" fill="#d29922"/>
+<text x="477.0" y="116.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Bronze</text>
+<text x="477.0" y="132.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">raw</text>
+<rect x="558" y="92" width="118" height="54" rx="10" fill="#161b22" stroke="#aeb6c2" stroke-width="1.6"/>
+<rect x="558" y="92" width="4" height="54" rx="2" fill="#aeb6c2"/>
+<text x="617.0" y="116.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Silver</text>
+<text x="617.0" y="132.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">cleansed</text>
+<rect x="698" y="92" width="118" height="54" rx="10" fill="#161b22" stroke="#e3b341" stroke-width="1.6"/>
+<rect x="698" y="92" width="4" height="54" rx="2" fill="#e3b341"/>
+<text x="757.0" y="116.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Gold</text>
+<text x="757.0" y="132.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">star schema</text>
+<rect x="848" y="92" width="140" height="54" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="1.6"/>
+<rect x="848" y="92" width="4" height="54" rx="2" fill="#58a6ff"/>
+<text x="918.0" y="116.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Semantic Model</text>
+<text x="918.0" y="132.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">Direct Lake</text>
+<rect x="1002" y="92" width="116" height="54" rx="10" fill="#161b22" stroke="#f2c811" stroke-width="1.6"/>
+<rect x="1002" y="92" width="4" height="54" rx="2" fill="#f2c811"/>
+<text x="1060.0" y="123.5" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Power BI</text>
+<rect x="418" y="250" width="150" height="54" rx="10" fill="#161b22" stroke="#39d2c0" stroke-width="1.6"/>
+<rect x="418" y="250" width="4" height="54" rx="2" fill="#39d2c0"/>
+<text x="493.0" y="274.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Eventhouse</text>
+<text x="493.0" y="290.0" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" fill="#8b949e">PM_Hot / KQL</text>
+<rect x="610" y="250" width="180" height="54" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1.6"/>
+<rect x="610" y="250" width="4" height="54" rx="2" fill="#3fb950"/>
+<text x="700.0" y="281.5" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#e6edf3">Real-Time Dashboard</text>
+<rect x="588.8" y="194" width="78.4" height="16" rx="8" fill="#0d1117" opacity="0.92"/>
+<text x="628" y="206" text-anchor="middle" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="9.5" font-style="italic" fill="#8b949e">hot features</text>
+</svg>

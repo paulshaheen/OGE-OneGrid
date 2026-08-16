@@ -18,8 +18,6 @@ _tables_big.txt
 _deploy_*.log
 _gen-*.py
 
-# docs-site build artifact
-docs-site/dist/
 
 # packaging output (tools/package-*.ps1)
 /dist/

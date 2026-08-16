@@ -10,10 +10,10 @@ and **Azure AI Foundry**. The **accelerator** — the thing you clone and deploy
 3. **A one-click localhost deploy wizard** — a local browser tool that provisions the whole
    solution into your Fabric capacity and streams live progress.
 
-> **Also versioned in this repo — for source control only (NOT part of the accelerator):**
-> the public **documentation site** (`docs-site/`) and its **trailer video**. They are kept
-> here so they're version-controlled and auto-deploy on change, but they are **not deployed by,
-> or required to run, the accelerator** — ignore them when cloning to deploy.
+> **The documentation site lives in its own repo now:**
+> [**paulshaheen/OneGrid-Site**](https://github.com/paulshaheen/OneGrid-Site) (public capabilities
+> site + trailer video). It is **not part of, deployed by, or required to run the accelerator** —
+> this repo is just the deployable solution.
 
 > **Try it first:** the live app and docs site let you explore before deploying anything.
 > Then run the wizard to stand the whole solution up in your own tenant.
@@ -68,14 +68,9 @@ pulls `deploy-ui/bootstrap-online.ps1` from `main`, which downloads the zip and 
 | 🧭 **Deploy tool** | `deploy-ui/`, `deploy.ps1`, `config.sample.json` | The localhost **wizard** and the underlying phase-based deploy script. |
 | 🧩 **Data plane** *(optional bolt-on)* | `bolt-ons/data-plane/` | Bring‑your‑own‑data layer: stream **your** historian/operational data into the accelerator's Eventstream custom endpoint instead of the synthetic seed. Ships a production PI→Fabric forwarder + connector contract (see [Data plane](#-data-plane--bring-your-own-data-optional-bolt-on)). |
 
-**Source-control only** (versioned here, but **not part of the accelerator** — you don't need
-these to clone, deploy, or run the solution; they're the public marketing/docs assets and
-auto-deploy on change):
-
-| Item | Path(s) | What it is |
-|---|---|---|
-| 📚 **Documentation site** | `docs-site/` | Zero-dependency static-site generator (`_build.js`) → the public capabilities site on Azure Static Web Apps. Has its own [README](docs-site/README.md). |
-| 📹 **Trailer video** | `docs-site/media/OneGrid_Trailer.mp4` | The intro video — **stored in Git (LFS)** so it's version-controlled. Change it here and CI redeploys the site (see [Changing the video](#-changing-the-trailer-video)). |
+**Documentation site** *(separate repo)*: the public capabilities site and trailer video now live
+in [**paulshaheen/OneGrid-Site**](https://github.com/paulshaheen/OneGrid-Site) — versioned and
+auto-deployed there, not part of this accelerator.
 
 ```
 OGE-OneGrid/
@@ -96,8 +91,7 @@ OGE-OneGrid/
 │   └── data-plane/            #   bring-your-own-data
 │       ├── core/              #     Forwarder.Core — shared durable-queue + publisher
 │       └── connectors/        #     pi-forwarder (PI) + db-forwarder (SQL Server/Oracle)
-├── docs-site/                 # docs site + media/ trailer video (source-control only — not part of the accelerator)
-└── .github/workflows/         # CI: auto-deploy the docs site on push
+└── tools/                     # packaging scripts (build the wizard + data downloads)
 ```
 
 ---
@@ -200,46 +194,19 @@ Connection targets resolve from env (`PBI_WORKSPACE`, `PBI_DATASET`, `KUSTO_CLUS
 
 ---
 
-## 📚 Appendix — The documentation site & trailer video *(source control only)*
+## 📚 Appendix — The documentation site *(moved to its own repo)*
 
-> These live in the repo purely so they're **version-controlled** and **auto-deploy on change**.
-> They are **not** part of the accelerator — you don't clone, deploy, or run them to stand up
-> the solution. Skip this section if you're just deploying the accelerator.
-
-`docs-site/` is a **zero-dependency static-site generator**: content lives in `_pages_*.js`
-modules, `_build.js` holds the shared CSS/JS/nav and emits self-contained HTML. It's deployed
-to **Azure Static Web Apps**.
-
-```powershell
-cd docs-site
-node _serve.js                 # local preview at http://localhost:8099
-node _build.js                 # regenerate all pages after edits
-```
-Full build/deploy details are in **[docs-site/README.md](docs-site/README.md)**.
-
-### 📹 Changing the trailer video
-The intro video lives in the repo at **`docs-site/media/OneGrid_Trailer.mp4`** (Git LFS).
-To change it, replace that file (and the poster) and push — the **GitHub Actions workflow**
-(`.github/workflows/deploy-docs.yml`) rebuilds and **redeploys the site automatically** on any
-push under `docs-site/**`. So *updating the video = updating the repo.*
-
-To re-encode a new source to the web-optimized format used here:
-```powershell
-ffmpeg -i <source>.mp4 -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p `
-  -vf "scale=1920:-2:flags=lanczos,unsharp=5:5:0.45:5:5:0.0" `
-  -c:a aac -b:a 160k -movflags +faststart docs-site/media/OneGrid_Trailer.mp4
-ffmpeg -ss 2 -i docs-site/media/OneGrid_Trailer.mp4 -frames:v 1 -q:v 2 docs-site/media/trailer-poster.jpg
-```
-
-> **CI secret:** the workflow needs the SWA deployment token stored as the repo secret
-> `AZURE_STATIC_WEB_APPS_API_TOKEN` (set once with `gh secret set`).
+The public documentation site and trailer video now live in
+[**paulshaheen/OneGrid-Site**](https://github.com/paulshaheen/OneGrid-Site). They are **not** part
+of the accelerator — you don't clone, deploy, or run them to stand up the solution. See that repo's
+README for build/deploy details (Azure Static Web Apps + the `AZURE_STATIC_WEB_APPS_API_TOKEN` secret).
 
 ---
 
 ## 📦 The historical-data bundle (Git LFS)
 
 The bundled parquet under `data/` travels **with the repo** via Git LFS (`.gitattributes`
-tracks `*.parquet`, `data/**`, and the trailer `*.mp4`). A customer just clones and
+tracks `*.parquet` and `data/**`). A customer just clones and
 deploys — no external storage:
 ```powershell
 git lfs install
