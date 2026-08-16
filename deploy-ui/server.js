@@ -158,26 +158,26 @@ const server = http.createServer(async (req, res) => {
     // deploy.ps1 present
     add('deploy.ps1', fs.existsSync(path.join(ROOT, 'deploy.ps1')) ? 'ok' : 'fail', fs.existsSync(path.join(ROOT, 'deploy.ps1')) ? 'found' : 'missing');
 
-    // data bundle materialized (not Git LFS pointer stubs)
+    // data bundle: local (full clone) uploads directly; absent = cloud-seeded at deploy time
     if (skipData) {
       add('Historical data bundle', 'warn', 'skipped (Skip data load is checked)');
     } else {
       const dataDir = path.join(ROOT, 'data');
-      let status = 'fail', detail = 'data/ folder missing - run: git lfs pull';
-      if (fs.existsSync(dataDir)) {
-        const sample = findFirstParquet(dataDir);
-        if (!sample) { status = 'fail'; detail = 'no parquet files found under data/'; }
-        else {
-          const sz = fs.statSync(sample).size;
-          if (sz < 1024) {
-            // LFS pointer files are ~130 bytes and start with "version https://git-lfs"
-            const head = fs.readFileSync(sample, 'utf8').slice(0, 40);
-            if (head.startsWith('version https://git-lfs')) { status = 'fail'; detail = 'data is Git LFS pointers - run: git lfs pull'; }
-            else { status = 'warn'; detail = 'data files unexpectedly small'; }
-          } else { status = 'ok'; detail = `materialized (${(dirSizeMB(dataDir)).toFixed(0)} MB)`; }
+      const sample = fs.existsSync(dataDir) ? findFirstParquet(dataDir) : null;
+      if (!sample) {
+        // Lightweight wizard: no local parquet -> the deploy seeds it cloud-to-cloud into OneLake.
+        add('Historical data bundle', 'ok', 'not bundled locally - seeded cloud-to-cloud from the public repo at deploy time');
+      } else {
+        const sz = fs.statSync(sample).size;
+        if (sz < 1024) {
+          // LFS pointer files are ~130 bytes and start with "version https://git-lfs"
+          const head = fs.readFileSync(sample, 'utf8').slice(0, 40);
+          if (head.startsWith('version https://git-lfs')) { add('Historical data bundle', 'fail', 'data is Git LFS pointers - run: git lfs pull (or delete data/ to cloud-seed instead)'); }
+          else { add('Historical data bundle', 'warn', 'data files unexpectedly small'); }
+        } else {
+          add('Historical data bundle', 'ok', `local bundle materialized (${(dirSizeMB(dataDir)).toFixed(0)} MB) - uploaded directly`);
         }
       }
-      add('Historical data bundle', status, detail);
     }
 
     const worst = checks.some(c => c.status === 'fail') ? 'fail' : (checks.some(c => c.status === 'warn') ? 'warn' : 'ok');
