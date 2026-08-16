@@ -51,7 +51,7 @@ $SRC = @{
   KqlDbId      = "da213762-0780-4c20-aef2-04371f1a4d89"
   SqlEndpoint  = "i22siiabnewedg7vb3coyirmp4-rsrtwftjhbxublnxg7f4tajzbq"
   KustoHost    = "trd-8a08ckb2duw406mvvg.z2.kusto"
-  OgeDatasetId = "53085889-e53f-416b-9810-996fd66baea9"   # source dataset id baked into PowerBI/OGE_Report.pbix
+  OgeDatasetId = "53085889-e53f-416b-9810-996fd66baea9"   # source dataset id (find/replace token only)
 }
 
 # ============================ helpers =========================================
@@ -540,13 +540,12 @@ function Phase-Semantic {
 
 # ============================ PHASE: OGE Power BI add-on =====================
 # Adds the OGE Power BI module: a Direct Lake semantic model that reads the
-# 'oge' schema of lh_poc (tables loaded by Phase-Data from data/lakehouse/oge/*),
-# then rebinds the local report PowerBI/OGE_Report.pbix to the new dataset so it
-# can be opened in Power BI Desktop.
+# 'oge' schema of lh_poc (tables loaded by Phase-Data from data/lakehouse/oge/*).
+# Build reports in the Fabric service directly against the 'semantic-oge' model.
 function Phase-OGE {
   $ws = $state.WorkspaceId
   if (-not $state.LakehouseId) { Log "PHASE oge: no lakehouse - run 'core' + 'data' first" "Yellow"; return }
-  Log "PHASE oge: Direct Lake semantic model + local report rebind"
+  Log "PHASE oge: Direct Lake semantic model"
 
   # Direct Lake semantic model over lh_poc / oge schema (rebind workspace + lakehouse GUIDs).
   $smFolder = Join-Path $Here "fabric\semanticmodel\semantic-oge"
@@ -556,29 +555,7 @@ function Phase-OGE {
   $sm  = UpsertItem $ws "semanticModels" "semantic-oge" $def
   $state.OgeDatasetId = $sm.id
   Log "  semantic-oge = $($sm.id)" "Green"
-
-  # Rebind the local report's live connection (PowerBI/OGE_Report.pbix) to the new dataset id.
-  $pbix = Join-Path $Here "PowerBI\OGE_Report.pbix"
-  if ((Test-Path $pbix) -and $state.OgeDatasetId) {
-    try {
-      Add-Type -AssemblyName System.IO.Compression.FileSystem
-      $zip = [System.IO.Compression.ZipFile]::Open($pbix, 'Update')
-      try {
-        $entry = $zip.GetEntry('Connections')
-        $sr = New-Object System.IO.StreamReader($entry.Open())
-        $txt = $sr.ReadToEnd(); $sr.Dispose()
-        $old = ($txt | ConvertFrom-Json).Connections[0].PbiModelDatabaseName
-        if ($old -and $old -ne $state.OgeDatasetId) {
-          $txt = $txt.Replace($old, $state.OgeDatasetId)
-          $s = $entry.Open(); $s.SetLength(0)
-          $sw = New-Object System.IO.StreamWriter($s)
-          $sw.Write($txt); $sw.Dispose()
-          Log "  rebound PowerBI/OGE_Report.pbix -> dataset $($state.OgeDatasetId)" "Green"
-        } else { Log "  PowerBI/OGE_Report.pbix already bound to $($state.OgeDatasetId)" }
-      } finally { $zip.Dispose() }
-      Log "  open PowerBI/OGE_Report.pbix in Power BI Desktop to view the OGE report" "Green"
-    } catch { Log "  report rebind FAILED (edit Connections manually): $($_.Exception.Message)" "Yellow" }
-  }
+  Log "  build OGE reports against the 'semantic-oge' model in the Fabric service" "Green"
 }
 
 # ============================ PHASE: foundry ==================================

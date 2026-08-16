@@ -249,7 +249,6 @@
         <div class="launch" style="margin-top:10px">
           <a class="launch-btn disabled" id="lb-web" target="_blank"><span class="li">🌐</span><span class="lt">Web Power BI<span class="ls">Main Overview report in the Fabric service</span></span></a>
           <a class="launch-btn disabled" id="lb-rt" target="_blank"><span class="li">⚡</span><span class="lt">Real-Time Report<span class="ls">Live KQL dashboard</span></span></a>
-          <a class="launch-btn disabled" id="lb-local" onclick="openLocal(event)"><span class="li">📊</span><span class="lt">Power BI Local Report<span class="ls">Open OGE_Report.pbix in Power BI Desktop</span></span></a>
         </div>
       </details>
     </div>
@@ -536,12 +535,11 @@ async function showLaunch(){
   const panel = document.getElementById('launchPanel');
   panel.classList.remove('hidden');
   let t = {}; try { t = await fetch('/api/launch-targets').then(r=>r.json()); } catch(e){ return; }
-  const wire = (id, url, isLocal) => {
+  const wire = (id, url) => {
     const el = document.getElementById(id);
-    if(isLocal ? t.localReport : url){ el.classList.remove('disabled'); if(!isLocal){ el.href = url; } }
+    if(url){ el.classList.remove('disabled'); el.href = url; }
     else { el.classList.add('disabled'); el.removeAttribute('href'); }
   };
-  wire('lb-local', t.localReport, true);
   wire('lb-web', t.webReport);
   wire('lb-rt', t.realtimeReport);
   wire('lb-app', t.chatAgent);
@@ -629,13 +627,6 @@ function renderDemoStatus(s){
 }
 
 function escapeHtml(str){ return String(str).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-async function openLocal(ev){
-  ev.preventDefault();
-  if(ev.currentTarget.classList.contains('disabled')) return;
-  try { const r = await fetch('/api/open-local',{method:'POST'}).then(r=>r.json()); if(r.error) alert(r.error); }
-  catch(e){ alert('Could not open the local report: '+e); }
-}
 
 async function wireDataPlane(ev){
   ev.preventDefault();

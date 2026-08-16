@@ -80,7 +80,6 @@ OGE-OneGrid/
 ├── data/                      # bundled historical parquet (Git LFS)
 ├── report-app/                # React dashboard + Node backend (data API + realtime WS)
 ├── chatagent/                 # natural-language chat agent (spawned by the report server)
-├── PowerBI/                   # OGE_Report.pbix (opened locally in Power BI Desktop)
 ├── infra/                     # foundry.bicep (Entra-only AI Foundry account)
 ├── bolt-ons/                  # optional add-ons (not required to run the accelerator)
 │   └── data-plane/            #   bring-your-own-data
@@ -229,7 +228,7 @@ ffmpeg -ss 2 -i docs-site/media/OneGrid_Trailer.mp4 -frames:v 1 -q:v 2 docs-site
 ## 📦 The historical-data bundle (Git LFS)
 
 The bundled parquet under `data/` travels **with the repo** via Git LFS (`.gitattributes`
-tracks `*.parquet`, `data/**`, `*.pbix`, and the trailer `*.mp4`). A customer just clones and
+tracks `*.parquet`, `data/**`, and the trailer `*.mp4`). A customer just clones and
 deploys — no external storage:
 ```powershell
 git lfs install
@@ -289,11 +288,11 @@ running on synthetic data regardless.
 ## OGE Power BI add-on module
 
 A self-contained Power BI module is layered onto the accelerator lakehouse: 8 tables in a new
-`oge` schema inside `lh_poc`, a Direct Lake `semantic-oge` model, and `PowerBI/OGE_Report.pbix`
-(opened locally in Power BI Desktop, rebound to the new dataset by the `oge` phase).
+`oge` schema inside `lh_poc` and a Direct Lake `semantic-oge` model. Build reports directly
+against the `semantic-oge` model in the Fabric service.
 ```powershell
 ./deploy.ps1 -ConfigPath ./config.json -Only core,data,oge   # or a full run
-# then open PowerBI\OGE_Report.pbix in Power BI Desktop
+# then build OGE reports against the 'semantic-oge' model in the Fabric service
 ```
 
 ---

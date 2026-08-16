@@ -305,7 +305,6 @@ const server = http.createServer(async (req, res) => {
     const targets = {
       chatAgent: state.AppUrl && state.AppUrl !== 'https://' ? state.AppUrl : null,
       workspace: ws ? `https://app.fabric.microsoft.com/groups/${ws}` : null,
-      localReport: fs.existsSync(path.join(ROOT, 'PowerBI', 'OGE_Report.pbix')) ? 'PowerBI/OGE_Report.pbix' : null,
       webReport: null,
       realtimeReport: null
     };
@@ -333,14 +332,6 @@ const server = http.createServer(async (req, res) => {
       } catch {}
     }
     return send(res, 200, targets);
-  }
-
-  // ---- open the local Power BI report (.pbix) in Power BI Desktop on this machine ----
-  if (req.method === 'POST' && p === '/api/open-local') {
-    const pbix = path.join(ROOT, 'PowerBI', 'OGE_Report.pbix');
-    if (!fs.existsSync(pbix)) return send(res, 404, { error: 'OGE_Report.pbix not found' });
-    execFile('powershell', ['-NoProfile', '-Command', `Start-Process -FilePath '${pbix}'`], { windowsHide: true }, () => {});
-    return send(res, 200, { opened: true, path: pbix });
   }
 
   // ---- launch the demo: trigger the Demo-Prep-RunOnce notebook (backfill + live stream, all sites) ----
