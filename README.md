@@ -20,29 +20,37 @@ and **Azure AI Foundry**. The **accelerator** — the thing you clone and deploy
 
 ---
 
-## ⚡ Quick start — clone from GitHub & run the wizard
+## ⚡ Quick start — no terminal, just double-click (Windows)
+
+1. **Download** `OneGrid-Wizard.zip` from the [latest release](https://github.com/paulshaheen/OGE-OneGrid/releases/latest) and **extract** it.
+2. **Double-click `Start-OneGrid-Wizard.cmd`.** It installs Node.js + the Azure CLI for you if they're missing (a Windows approval prompt may appear), opens your browser, and starts the wizard at `http://localhost:7333`.
+3. In the wizard: **Sign in to Azure** (a button) → choose targets → prerequisite checks → **Deploy**.
+
+That's it — **no git, no clone, no `npm`, nothing to type.** The wizard writes `config.json`, runs
+`deploy.ps1`, and seeds the ~532 MB demo data **cloud-to-cloud** straight into your Fabric
+workspace (your laptop never downloads it). When it finishes you get a **🖥️ Launch Web App** button.
+
+**You need:** a Windows machine and an existing **Microsoft Fabric capacity** (F-SKU or Trial).
+Node.js and the Azure CLI are installed for you. No local Docker — the app image builds in the cloud.
+
+<details>
+<summary>Prefer the command line, or contributing? (full clone)</summary>
 
 ```powershell
-# 1. Install Git LFS once (pulls the bundled data), then clone
+# Full clone includes the local data/ bundle (Git LFS), so deploy uploads it
+# directly instead of cloud-seeding.
 git lfs install
 git clone https://github.com/paulshaheen/OGE-OneGrid.git
 cd OGE-OneGrid
-
-# 2. Sign in to Azure (an account with rights to create resources + Fabric admin/member)
 az login
-
-# 3. Launch the deploy wizard, then open the browser
-node deploy-ui/server.js          # or:  ./deploy-ui/launch.ps1  (also opens the browser)
+node deploy-ui/server.js          # or:  ./deploy-ui/launch.ps1
 #    → http://localhost:7333
 ```
 
-The wizard walks you through **sign-in → choose targets → prerequisite checks → deploy**, with
-a live progress tracker. It writes `config.json` and runs `deploy.ps1` for you. When it finishes
-you get a **🖥️ Launch Web App** button.
-
-**You need:** an existing **Microsoft Fabric capacity** (F-SKU or Trial), **Node.js**, the
-**Azure CLI**, and **Git LFS**. No local Docker — the app image builds in the cloud.
-Prefer the command line? See [Option B — Config file + CLI](#option-b--config-file--cli).
+See [Option B — Config file + CLI](#option-b--config-file--cli). To rebuild the downloads:
+`./tools/package-wizard.ps1` (the ~48 MB wizard zip) and `./tools/package-data.ps1`
+(the data bundle you publish as a release asset).
+</details>
 
 ---
 
@@ -52,7 +60,7 @@ Prefer the command line? See [Option B — Config file + CLI](#option-b--config-
 
 | Section | Path(s) | What it is |
 |---|---|---|
-| 🚀 **Accelerator** | `fabric/`, `data/`, `PowerBI/`, `infra/` | Fabric item definitions (notebooks, semantic model, eventhouse, pipeline…), the bundled historical **data** (Git LFS), the Power BI add-on, and IaC. |
+| 🚀 **Accelerator** | `fabric/`, `data/`, `infra/` | Fabric item definitions (notebooks, semantic model, eventhouse, pipeline…), the bundled historical **data** (Git LFS), and IaC. |
 | 🖥️ **Web app** | `report-app/`, `chatagent/`, `Dockerfile` | The React dashboard + Node data API + realtime WebSocket, which spawns the **chat agent**. Built into one container image. |
 | 🧭 **Deploy tool** | `deploy-ui/`, `deploy.ps1`, `config.sample.json` | The localhost **wizard** and the underlying phase-based deploy script. |
 | 🧩 **Data plane** *(optional bolt-on)* | `bolt-ons/data-plane/` | Bring‑your‑own‑data layer: stream **your** historian/operational data into the accelerator's Eventstream custom endpoint instead of the synthetic seed. Ships a production PI→Fabric forwarder + connector contract (see [Data plane](#-data-plane--bring-your-own-data-optional-bolt-on)). |

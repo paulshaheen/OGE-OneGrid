@@ -1,4 +1,4 @@
-﻿<#
+<#
 ================================================================================
  OneGrid on Microsoft Fabric - Single-Click Solution Deploy
 ================================================================================
@@ -330,67 +330,134 @@ function OneLakePut($ws, $lh, $localFile, $relPath) {
   Invoke-RestMethod -Uri "$url`?action=flush&position=$($bytes.Length)" -Method Patch -Headers $hdr | Out-Null
 }
 
+function OneLakeGet($ws, $lh, $relPath) {
+  $tok = Tok "https://storage.azure.com/"
+  $url = "https://onelake.dfs.fabric.microsoft.com/$ws/$lh/Files/$relPath"
+  return Invoke-RestMethod -Uri $url -Method Get -Headers @{ Authorization="Bearer $tok"; "x-ms-version"="2021-06-08" }
+}
+
+# Run a Fabric notebook job and poll to completion with a live, verbose heartbeat.
+function Run-FabricNotebook($ws, $nbId, $label, $maxIters = 90) {
+  try {
+    $runResp = FPost "workspaces/$ws/items/$nbId/jobs/instances?jobType=RunNotebook" @{}
+    $jobUrl = ([string[]]$runResp.Headers['Location'])[0]
+    if (-not $jobUrl) { Log "  ${label}: could not start job" "Yellow"; return $false }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew(); $lastStatus = ''
+    for ($i=0; $i -lt $maxIters; $i++) {
+      Start-Sleep -Seconds 10
+      $js = Invoke-RestMethod -Uri $jobUrl -Headers @{ Authorization="Bearer $(FTok)" }
+      $el = [int]$sw.Elapsed.TotalSeconds
+      if ($js.status -in @('Completed','Failed','Cancelled','Deduped')) {
+        $clr = if ($js.status -eq 'Completed') { 'Green' } else { 'Yellow' }
+        Log "  ${label}: $($js.status) (after ${el}s)" $clr
+        return ($js.status -eq 'Completed')
+      }
+      if ($js.status -ne $lastStatus) { Log "    ${label}: state -> $($js.status)" "Cyan"; $lastStatus = $js.status }
+      $spin = @('|','/','-','\')[$i % 4]
+      Log ("    $spin ${label} running... status=$($js.status) | ${el}s elapsed") "DarkGray"
+    }
+    Log "  ${label}: timed out after $([int]$sw.Elapsed.TotalSeconds)s" "Yellow"
+  } catch { Log "  ${label} run: $($_.Exception.Message)" "Yellow" }
+  return $false
+}
 function Phase-Data {
   if ($SkipData) { Log "PHASE data: skipped (-SkipData)" "Yellow"; return }
   $ws = $state.WorkspaceId; $lh = $state.LakehouseId
-  Log "PHASE data: uploading bundled parquet to OneLake, then loading Delta tables"
   $dataRoot = Join-Path $Here "data\lakehouse"
-  if (-not (Test-Path $dataRoot)) { Log "  no bundled lakehouse data found (data/lakehouse) - see README to generate it" "Yellow" }
+  $hasLocalData = Test-Path $dataRoot
+  $bundleUrl = if ($cfg.data -and $cfg.data.bundleUrl) { $cfg.data.bundleUrl } else { "https://github.com/paulshaheen/OGE-OneGrid/releases/latest/download/onegrid-data.zip" }
+
+  if (-not $hasLocalData) {
+    # -------- lightweight wizard: seed OneLake straight from the public repo (cloud-to-cloud) --------
+    Log "PHASE data: cloud-seed - no local data bundle; seeding OneLake directly from the public repo"
+    Log "  bundle: $bundleUrl"
+    $smap = @{ $SRC.WorkspaceId=$ws; $SRC.LakehouseId=$lh; "__DATA_BUNDLE_URL__"=$bundleUrl }
+    $sdef = BuildNotebookDefinition (Join-Path $Here "fabric\notebooks\_seed_data") $smap
+    $snb  = UpsertItem $ws "notebooks" "_seed_data" $sdef
+    Log "  running _seed_data notebook (downloads the bundle into OneLake - the laptop never touches it)..."
+    if (-not (Run-FabricNotebook $ws $snb.id "_seed_data" 120)) { Log "  cloud-seed did not complete cleanly - Delta load may find no files" "Yellow" }
+  }
   else {
-    Get-ChildItem $dataRoot -Recurse -File | ForEach-Object {
-      $rel = "solution_import/lakehouse/" + $_.FullName.Substring($dataRoot.Length).TrimStart('\','/').Replace('\','/')
-      OneLakePut $ws $lh $_.FullName $rel
+    # -------- full clone: upload the local parquet bundle to OneLake --------
+    Log "PHASE data: uploading bundled parquet to OneLake, then loading Delta tables"
+    $lhFiles = @(Get-ChildItem $dataRoot -Recurse -File)
+    $lhTotal = $lhFiles.Count
+    $lhTotMB = [math]::Round((($lhFiles | Measure-Object Length -Sum).Sum)/1MB, 1)
+    Log "  found $lhTotal parquet file(s) totalling $lhTotMB MB - uploading to OneLake..."
+    $k = 0; $sentMB = 0.0; $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    foreach ($f in $lhFiles) {
+      $k++
+      $rel = "solution_import/lakehouse/" + $f.FullName.Substring($dataRoot.Length).TrimStart('\','/').Replace('\','/')
+      $szMB = [math]::Round($f.Length/1MB, 2)
+      Log ("    [{0,3}/{1}] -> {2}  ({3} MB)" -f $k, $lhTotal, $rel, $szMB)
+      OneLakePut $ws $lh $f.FullName $rel
+      $sentMB += $szMB
+      $pct = [int](($k / $lhTotal) * 100)
+      $rate = if ($sw.Elapsed.TotalSeconds -gt 0) { [math]::Round($sentMB / $sw.Elapsed.TotalSeconds, 1) } else { 0 }
+      Log ("      ok  {0}% | {1}/{2} MB | {3} MB/s | {4}s elapsed" -f $pct, [math]::Round($sentMB,1), $lhTotMB, $rate, [int]$sw.Elapsed.TotalSeconds) "DarkGray"
     }
-    Log "  uploaded lakehouse parquet bundle"
-    # Run the load notebook (idempotent create)
-    $map = @{ $SRC.WorkspaceId=$ws; $SRC.LakehouseId=$lh }
-    $def = BuildNotebookDefinition (Join-Path $Here "fabric\notebooks\_load_data") $map
-    $nb = UpsertItem $ws "notebooks" "_load_data" $def
-    Log "  running _load_data notebook (loads Delta tables)..."
-    try {
-      $runResp = FPost "workspaces/$ws/items/$($nb.id)/jobs/instances?jobType=RunNotebook" @{}
-      $jobUrl = ([string[]]$runResp.Headers['Location'])[0]
-      if ($jobUrl) {
-        for ($i=0; $i -lt 60; $i++) {
-          Start-Sleep -Seconds 15
-          $js = Invoke-RestMethod -Uri $jobUrl -Headers @{ Authorization="Bearer $(FTok)" }
-          if ($js.status -in @('Completed','Failed','Cancelled','Deduped')) { Log "  _load_data job: $($js.status)"; break }
-        }
-      }
-    } catch { Log "  _load_data run: $($_.Exception.Message)" "Yellow" }
-  }
-  # Eventhouse: upload bundled PiEvents parquet to the new Lakehouse Files, then
-  # .ingest each part into the KQL table (engine reads OneLake in-workspace).
-  $ehRoot = Join-Path $Here "data\eventhouse"
-  if ((Test-Path $ehRoot) -and $state.KustoUri -and $state.EventhouseSchemaApplied -eq $false) {
-    Log "  skipping Eventhouse ingest - schema was not applied (fix the schema error above, then re-run: deploy.ps1 -Only data)" "Red"
-  }
-  elseif ((Test-Path $ehRoot) -and $state.KustoUri) {
-    Get-ChildItem $ehRoot -Directory | ForEach-Object {
-      $tbl = $_.Name
-      $files = Get-ChildItem $_.FullName -Recurse -File -Filter *.parquet
-      $fail = 0; $ok = 0; $maxFail = 5; $total = $files.Count
-      Log "  eventhouse '$tbl': ingesting $total file(s) to OneLake + KQL (this can take several minutes)..."
-      foreach ($f in $files) {
-        if ($fail -ge $maxFail) { Log "  ABORT ingest '$tbl' - $fail failures hit (target table missing or endpoint erroring). Skipping remaining $($files.Count - $ok - $fail) file(s)." "Red"; break }
-        $rel = "solution_import/eventhouse/$tbl/$($f.Name)"
-        OneLakePut $ws $lh $f.FullName $rel
-        $onelakeUrl = "https://onelake.dfs.fabric.microsoft.com/$ws/$lh/Files/$rel"
-        $csl = ".ingest into table ['$tbl'] (h'$onelakeUrl;impersonate') with (format='parquet')"
-        $body = @{ db=$cfg.fabric.kqlDatabaseName; csl=$csl } | ConvertTo-Json; $ingestErr = $null
-        try { Invoke-RestMethod -Uri "$($state.KustoUri)/v1/rest/mgmt" -Method Post -Headers @{ Authorization="Bearer $(KustoTok $state.KustoUri)"; "Content-Type"="application/json" } -Body $body | Out-Null }
-        catch { $ingestErr = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }; $fail++; Log "  ingest $tbl/$($f.Name) FAILED ($fail/$maxFail): $ingestErr" "Yellow" }
-        if (-not $ingestErr) { $ok++ }
-        $processed = $ok + $fail
-        if ($processed % 10 -eq 0 -and $processed -lt $total) { Log "  eventhouse '$tbl': $processed/$total files ingested..." }
-      }
-      $clr = if ($fail -eq 0) { 'Green' } else { 'Yellow' }
-      Log "  eventhouse '$tbl': $ok ingested, $fail failed (of $($files.Count) file(s))" $clr
-    }
-  } else {
-    Log "  NOTE: no bundled Eventhouse data found (data/eventhouse)." "Yellow"
+    $sw.Stop()
+    Log ("  uploaded lakehouse parquet bundle - $lhTotal files, $lhTotMB MB in $([int]$sw.Elapsed.TotalSeconds)s") "Green"
   }
 
+  # ---- load Delta tables (files are now in OneLake in both local + cloud-seed modes) ----
+  $map = @{ $SRC.WorkspaceId=$ws; $SRC.LakehouseId=$lh }
+  $def = BuildNotebookDefinition (Join-Path $Here "fabric\notebooks\_load_data") $map
+  $nb  = UpsertItem $ws "notebooks" "_load_data" $def
+  Log "  running _load_data notebook (loads Delta tables)..."
+  Run-FabricNotebook $ws $nb.id "_load_data" 90 | Out-Null
+
+  # ---- Eventhouse: ingest PiEvents parquet from OneLake into the KQL table ----
+  $ehRoot = Join-Path $Here "data\eventhouse"
+  if ($state.KustoUri -and $state.EventhouseSchemaApplied -eq $false) {
+    Log "  skipping Eventhouse ingest - schema was not applied (fix the schema error above, then re-run: deploy.ps1 -Only data)" "Red"
+  }
+  elseif ($state.KustoUri) {
+    $ehItems = @()
+    if ($hasLocalData -and (Test-Path $ehRoot)) {
+      Get-ChildItem $ehRoot -Directory | ForEach-Object {
+        $tbl = $_.Name
+        Get-ChildItem $_.FullName -Recurse -File -Filter *.parquet | ForEach-Object {
+          $rel = "solution_import/eventhouse/$tbl/$($_.Name)"
+          OneLakePut $ws $lh $_.FullName $rel
+          $ehItems += @{ table=$tbl; rel=$rel }
+        }
+      }
+    }
+    else {
+      # cloud-seed: PiEvents already landed in OneLake by _seed_data; read the index it wrote.
+      try {
+        $fx = OneLakeGet $ws $lh "solution_import/_files.json"
+        foreach ($p in $fx.eventhouse.PSObject.Properties) {
+          foreach ($leaf in $p.Value) { $ehItems += @{ table=$p.Name; rel="solution_import/eventhouse/$($p.Name)/$leaf" } }
+        }
+      } catch { Log "  eventhouse: could not read seeded file index (_files.json): $($_.Exception.Message)" "Yellow" }
+    }
+
+    if ($ehItems.Count -eq 0) { Log "  NOTE: no Eventhouse data to ingest." "Yellow" }
+    else {
+      foreach ($g in ($ehItems | Group-Object { $_.table })) {
+        $tbl = $g.Name; $files = @($g.Group); $fail=0; $ok=0; $maxFail=5; $total=$files.Count
+        Log "  eventhouse '$tbl': ingesting $total file(s) from OneLake into KQL (this can take several minutes)..."
+        foreach ($it in $files) {
+          if ($fail -ge $maxFail) { Log "  ABORT ingest '$tbl' - $fail failures hit. Skipping remaining $($total - $ok - $fail) file(s)." "Red"; break }
+          $onelakeUrl = "https://onelake.dfs.fabric.microsoft.com/$ws/$lh/Files/$($it.rel)"
+          $csl = ".ingest into table ['$tbl'] (h'$onelakeUrl;impersonate') with (format='parquet')"
+          $body = @{ db=$cfg.fabric.kqlDatabaseName; csl=$csl } | ConvertTo-Json; $ingestErr = $null
+          try { Invoke-RestMethod -Uri "$($state.KustoUri)/v1/rest/mgmt" -Method Post -Headers @{ Authorization="Bearer $(KustoTok $state.KustoUri)"; "Content-Type"="application/json" } -Body $body | Out-Null }
+          catch { $ingestErr = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }; $fail++; Log "  ingest $tbl/$(Split-Path $it.rel -Leaf) FAILED ($fail/$maxFail): $ingestErr" "Yellow" }
+          if (-not $ingestErr) { $ok++ }
+          $processed = $ok + $fail
+          if ($processed % 10 -eq 0 -and $processed -lt $total) { Log "    eventhouse '$tbl': $processed/$total ingested..." "DarkGray" }
+        }
+        $clr = if ($fail -eq 0) { 'Green' } else { 'Yellow' }
+        Log "  eventhouse '$tbl': $ok ingested, $fail failed (of $total file(s))" $clr
+      }
+    }
+  }
+  else {
+    Log "  NOTE: Eventhouse not available (no KustoUri)." "Yellow"
+  }
   # ---- PHASE sites: synthetic multi-site fan-out (clone reference site into N healthy sites) ----
   # Runs after Delta load + PiEvents ingest so it can clone gold/ml rows AND the PiEvents tail.
   # New sites are stable/green (no watchlist/anomaly/root-cause); only RV2/RV3 stay flagged.

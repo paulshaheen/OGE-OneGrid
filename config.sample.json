@@ -16,6 +16,11 @@
     "siteCount": 8
   },
 
+  "//data": "OPTIONAL. Where the lightweight wizard seeds the demo data from when no local data/ bundle is present. Pulled cloud-to-cloud into OneLake. Defaults to the public release asset below.",
+  "data": {
+    "bundleUrl": "https://github.com/paulshaheen/OGE-OneGrid/releases/latest/download/onegrid-data.zip"
+  },
+
   "//fixedIdentity": "OPTIONAL. A service principal (with a client secret) used as the Import semantic model's data-source identity so it can refresh from the Lakehouse SQL endpoint. If provided, deploy binds a connection + refreshes automatically; otherwise do it manually (see README).",
   "fixedIdentity": {
     "tenantId": "",
