@@ -33,6 +33,9 @@ workspace (your laptop never downloads it). When it finishes you get a **🖥️
 **You need:** a Windows machine and an existing **Microsoft Fabric capacity** (F-SKU or Trial).
 Node.js and the Azure CLI are installed for you. No local Docker — the app image builds in the cloud.
 
+> 🍎 **macOS support is coming soon.** A double-click `.command` launcher (Homebrew-based) is on
+> the way; until then, Mac users can use the command-line path below.
+
 <details>
 <summary>Prefer the command line, or contributing? (full clone)</summary>
 
