@@ -24,12 +24,33 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $zip = Join-Path $OutDir "onegrid-data.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 
-$groups = @('lakehouse','eventhouse') | Where-Object { Test-Path (Join-Path $data $_) } | ForEach-Object { Join-Path $data $_ }
+$groups = @('lakehouse','eventhouse') | Where-Object { Test-Path (Join-Path $data $_) }
 Write-Host "Zipping data groups -> $zip" -ForegroundColor Cyan
-$groups | ForEach-Object { Write-Host "  + $_" }
+$groups | ForEach-Object { Write-Host "  + $(Join-Path $data $_)" }
 
-# Compress so the archive root holds lakehouse/ and eventhouse/ (not data/).
-Compress-Archive -Path $groups -DestinationPath $zip -CompressionLevel Optimal -Force
+# Build the zip with FORWARD-SLASH entry names. Windows Compress-Archive writes
+# backslash separators, which Python's zipfile on Linux (the Fabric Spark seed
+# notebook) treats as literal filename characters - so lakehouse/ and eventhouse/
+# never become directories and nothing lands in OneLake. Writing entries by hand
+# guarantees a cross-platform archive.
+Add-Type -AssemblyName System.IO.Compression | Out-Null
+Add-Type -AssemblyName System.IO.Compression.FileSystem | Out-Null
+$fsZip = [System.IO.File]::Open($zip, [System.IO.FileMode]::Create)
+$arch  = New-Object System.IO.Compression.ZipArchive($fsZip, [System.IO.Compression.ZipArchiveMode]::Create)
+$count = 0
+foreach ($group in $groups) {
+  $base = Join-Path $data $group
+  Get-ChildItem $base -Recurse -File | ForEach-Object {
+    $rel = $group + '/' + $_.FullName.Substring($base.Length).TrimStart('\','/').Replace('\','/')
+    $entry = $arch.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
+    $es = $entry.Open()
+    $in = [System.IO.File]::OpenRead($_.FullName)
+    $in.CopyTo($es); $in.Close(); $es.Close()
+    $count++
+  }
+}
+$arch.Dispose(); $fsZip.Close()
+Write-Host "  wrote $count entries (forward-slash paths)" -ForegroundColor DarkGray
 
 $mb = [math]::Round((Get-Item $zip).Length/1MB,1)
 Write-Host ""
