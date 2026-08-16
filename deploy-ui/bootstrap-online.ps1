@@ -75,5 +75,17 @@ else {
 
 Step 3 'Starting the wizard'
 if (-not (Test-Path $innerBoot)) { Die "launcher not found: $innerBoot" }
+
+# If a wizard is already running on the port, just open it (don't start a second one).
+$port = if ($env:DEPLOY_UI_PORT) { $env:DEPLOY_UI_PORT } else { 7333 }
+try {
+  $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',[int]$port); $c.Close()
+  Write-Host ''
+  Write-Host "   The wizard is already running on port $port - opening it in your browser." -ForegroundColor Yellow
+  Write-Host "   (To restart fresh, close the other wizard window first.)" -ForegroundColor DarkGray
+  Start-Process "http://localhost:$port"
+  return
+} catch {}
+
 # Hand off to the packaged launcher (installs Node + Azure CLI if needed, opens browser, runs server).
 & $innerBoot
