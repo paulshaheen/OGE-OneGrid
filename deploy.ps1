@@ -689,6 +689,19 @@ function Phase-OGE {
   $state.OgeDatasetId = $sm.id
   Log "  semantic-oge = $($sm.id)" "Green"
   Log "  build OGE reports against the 'semantic-oge' model in the Fabric service" "Green"
+
+  # Native Fabric ontology (Digital Twin Builder) over lh_poc - a first-class semantic
+  # model of the OneGrid domain (plants, units, assets, sensors, work, advisories, outages,
+  # predictions). Complements the notebook-derived knowledge graph in the web app.
+  $ontFolder = Join-Path $Here "fabric\digitaltwinbuilder\OneGridOntology"
+  if (Test-Path $ontFolder) {
+    try {
+      $odef = BuildDefinition $ontFolder @{ $SRC.LakehouseId = $state.LakehouseId }
+      $ont = UpsertItem $ws "digitaltwinbuilders" "OneGridOntology" $odef
+      $state.OntologyId = $ont.id
+      Log "  digital twin ontology (OneGridOntology) = $($ont.id)" "Green"
+    } catch { Log "  digital twin ontology skipped: $($_.Exception.Message)" "Yellow" }
+  }
 }
 
 # ============================ PHASE: foundry ==================================

@@ -287,6 +287,11 @@ against the `semantic-oge` model in the Fabric service.
 # then build OGE reports against the 'semantic-oge' model in the Fabric service
 ```
 
+The `oge` phase also deploys a **native Fabric ontology** — a **Digital Twin Builder** item
+(`OneGridOntology`) over `lh_poc` modeling the domain (Plant → Unit → Asset → Sensor, plus
+WorkRequest, Advisory, Outage, Prediction) as first-class entity types + relationships. It lives
+alongside the notebook-derived knowledge graph the web app renders (`fabric/digitaltwinbuilder/`).
+
 ---
 
 ## Notes & limits
