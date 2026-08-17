@@ -56,6 +56,10 @@
     "Notebook|Process-AIMM-Data": "2 - Data Foundation",
     "Notebook|Process-iCare-Data": "2 - Data Foundation",
     "SemanticModel|semantic-main-import": "5 - Analytics and Reporting",
+    "SemanticModel|semantic-oge": "5 - Analytics and Reporting",
+    "DigitalTwinBuilder|OneGridOntology": "5 - Analytics and Reporting",
+    "Notebook|_seed_data": "6 - Staging",
+    "Notebook|_load_data": "6 - Staging",
     "Notebook|Ontology-Knowledge-Graph": "5 - Analytics and Reporting"
   }
 }
