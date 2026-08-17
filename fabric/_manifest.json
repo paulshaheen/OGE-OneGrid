@@ -1,12 +1,6 @@
 ﻿[
     {
         "type": "Notebook",
-        "displayName": "Fix-BridgeTable-FeedwaterTags",
-        "folder": "notebooks/Fix-BridgeTable-FeedwaterTags",
-        "parts": 2
-    },
-    {
-        "type": "Notebook",
         "displayName": "Gold-Feature-Selection",
         "folder": "notebooks/Gold-Feature-Selection",
         "parts": 2

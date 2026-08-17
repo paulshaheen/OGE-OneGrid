@@ -46,7 +46,6 @@
     "Notebook|Process-PIData": "2 - Data Foundation",
     "Dataflow|PI_Ingest": "2 - Data Foundation",
     "MLExperiment|Phase3-LongTerm-Survival": "4 - ML Models",
-    "Notebook|Fix-BridgeTable-FeedwaterTags": "2 - Data Foundation",
     "Notebook|Phase-LongTerm-Cox": "4 - ML Models",
     "Notebook|Phase4-Model-Scoring-Batch": "4 - ML Models",
     "Notebook|Phase5-Daily-Narrative": "4 - ML Models",
