@@ -25,8 +25,22 @@ workspace (your laptop never downloads it). When it finishes you get a **🖥️
 **You need:** a Windows machine and an existing **Microsoft Fabric capacity** (F-SKU or Trial).
 Node.js and the Azure CLI are installed for you. No local Docker — the app image builds in the cloud.
 
-> 🍎 **macOS support is coming soon.** A double-click `.command` launcher (Homebrew-based) is on
-> the way; until then, Mac users can use the command-line path below.
+> 🍎 **On a Mac?** See [macOS quick start](#-quick-start--macos) just below — same double-click
+> experience with a `.command` launcher (Homebrew installs the prerequisites for you).
+
+## 🍎 Quick start — macOS
+
+1. **Download one file:** **[`OneGrid-Wizard.command`](https://github.com/paulshaheen/OGE-OneGrid/releases/latest/download/OneGrid-Wizard.command)**.
+2. **First run:** right-click it → **Open** → **Open** (this clears macOS Gatekeeper on an unsigned
+   download; after the first time you can just double-click). If it opens in a text editor instead of
+   running, run `chmod +x ~/Downloads/OneGrid-Wizard.command` once, then double-click.
+3. It installs **Homebrew** (if missing), then **Node.js + Azure CLI + PowerShell 7**, downloads the
+   wizard, opens your browser, and starts it at `http://localhost:7333`.
+4. In the wizard: **Sign in to Azure** → choose targets → prerequisite checks → **Deploy**.
+
+**You need:** a Mac (Apple Silicon or Intel) and an existing **Microsoft Fabric capacity**. The deploy
+engine runs under **PowerShell 7 (`pwsh`)**; Homebrew installs it for you. Everything else is identical
+to Windows — same wizard, same cloud-to-cloud data seed, same **🖥️ Launch Web App** at the end.
 
 <details>
 <summary>Prefer the command line, or contributing? (full clone)</summary>
@@ -44,10 +58,13 @@ node deploy-ui/server.js          # or:  ./deploy-ui/launch.ps1
 
 See [Option B — Config file + CLI](#option-b--config-file--cli).
 
-**Maintainers — publishing the download:** run `./tools/package-wizard.ps1` (~48 MB `OneGrid-Wizard.zip`)
-and `./tools/package-data.ps1` (`onegrid-data.zip`), then attach **three** assets to the latest release:
-`OneGrid-Wizard.cmd` (the one-file launcher), `OneGrid-Wizard.zip`, and `onegrid-data.zip`. The launcher
-pulls `deploy-ui/bootstrap-online.ps1` from `main`, which downloads the zip and starts the wizard.
+**Maintainers — publishing the download:** run `./tools/package-wizard.ps1` (~48 MB `OneGrid-Wizard.zip`,
+cross-platform forward-slash zip entries so macOS `unzip` rebuilds the tree)
+and `./tools/package-data.ps1` (`onegrid-data.zip`), then attach **four** assets to the latest release:
+`OneGrid-Wizard.cmd` (Windows one-file launcher), `OneGrid-Wizard.command` (macOS one-file launcher),
+`OneGrid-Wizard.zip`, and `onegrid-data.zip`. The Windows launcher pulls `deploy-ui/bootstrap-online.ps1`
+and the macOS launcher pulls `deploy-ui/bootstrap-mac.sh` from `main`; each downloads the zip and starts
+the wizard.
 </details>
 
 ---

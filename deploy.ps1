@@ -167,7 +167,7 @@ function UpsertItem($ws, $seg, $name, $def) {
 
 # Organize workspace items into folders per fabric/_folders.json (idempotent).
 function Apply-Folders($ws) {
-  $mfPath = Join-Path $Here "fabric\_folders.json"
+  $mfPath = Join-Path $Here "fabric/_folders.json"
   if (-not (Test-Path $mfPath)) { return }
   $mf = Get-Content $mfPath -Raw | ConvertFrom-Json
   # Create folders (get-or-create), build name->id.
@@ -291,7 +291,7 @@ function Phase-Core {
   Log "  eventhouse=$($eh.id) kqlDb=$($kdb.id) kusto=$($state.KustoUri)" "Green"
 
   # Apply Eventhouse schema (tables, mappings, functions). Probe readiness, skip if already applied.
-  $schemaFile = Join-Path $Here "fabric\eventhouse\schema.kql"
+  $schemaFile = Join-Path $Here "fabric/eventhouse/schema.kql"
   if (Test-Path $schemaFile) {
     $mgmt = "$($state.KustoUri)/v1/rest/mgmt"
     $already = $false
@@ -326,7 +326,7 @@ function Phase-Core {
   # Seed synthetic demo outages into PCIOutages (idempotent) so the report's Fleet
   # Availability tile has realistic derates/outages to drill into. Runs as a standalone
   # .ingest inline command (NOT via the database-script apply, which can't host inline CSV).
-  $seedFile = Join-Path $Here "fabric\eventhouse\seed-demo.kql"
+  $seedFile = Join-Path $Here "fabric/eventhouse/seed-demo.kql"
   if ((Test-Path $seedFile) -and $state.KustoUri) {
     try {
       $qBody = @{ db=$cfg.fabric.kqlDatabaseName; csl="PCIOutages | where modified_by == 'demo-seed' | count" } | ConvertTo-Json
@@ -359,7 +359,7 @@ function Phase-Artifacts {
     $SRC.KustoHost   = (([Uri]$state.KustoUri).Host -replace '\.fabric\.microsoft\.com$','')
   }
   # Notebooks (idempotent; _export_data and _load_data are deploy helpers, not app notebooks)
-  Get-ChildItem (Join-Path $Here "fabric\notebooks") -Directory | ForEach-Object {
+  Get-ChildItem (Join-Path $Here "fabric/notebooks") -Directory | ForEach-Object {
     $name = $_.Name
     if ($name -in @('_export_data','_load_data')) { return }
     $def = BuildNotebookDefinition $_.FullName $map
@@ -367,13 +367,13 @@ function Phase-Artifacts {
     catch { Log "  notebook $name FAILED: $($_.Exception.Message)" "Yellow" }
   }
   # Pipeline(s)
-  Get-ChildItem (Join-Path $Here "fabric\pipelines") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+  Get-ChildItem (Join-Path $Here "fabric/pipelines") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
     $def = BuildDefinition $_.FullName $map
     try { UpsertItem $ws "dataPipelines" $_.Name $def | Out-Null; Log "  pipeline: $($_.Name)" }
     catch { Log "  pipeline $($_.Name) FAILED: $($_.Exception.Message)" "Yellow" }
   }
   # KQL dashboards (the real-time report). Rebind eventhouse/KQL-DB ids via $map.
-  Get-ChildItem (Join-Path $Here "fabric\kqldashboards") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+  Get-ChildItem (Join-Path $Here "fabric/kqldashboards") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
     $def = BuildDefinition $_.FullName $map
     try { UpsertItem $ws "kqlDashboards" $_.Name $def | Out-Null; Log "  kql dashboard: $($_.Name)" }
     catch { Log "  kql dashboard $($_.Name) FAILED: $($_.Exception.Message)" "Yellow" }
@@ -429,7 +429,7 @@ function Run-FabricNotebook($ws, $nbId, $label, $maxIters = 90) {
 function Phase-Data {
   if ($SkipData) { Log "PHASE data: skipped (-SkipData)" "Yellow"; return }
   $ws = $state.WorkspaceId; $lh = $state.LakehouseId
-  $dataRoot = Join-Path $Here "data\lakehouse"
+  $dataRoot = Join-Path $Here "data/lakehouse"
   $hasLocalData = Test-Path $dataRoot
   $bundleUrl = if ($cfg.data -and $cfg.data.bundleUrl) { $cfg.data.bundleUrl } else { "https://github.com/paulshaheen/OGE-OneGrid/releases/latest/download/onegrid-data.zip" }
 
@@ -438,7 +438,7 @@ function Phase-Data {
     Log "PHASE data: cloud-seed - no local data bundle; seeding OneLake directly from the public repo"
     Log "  bundle: $bundleUrl"
     $smap = @{ $SRC.WorkspaceId=$ws; $SRC.LakehouseId=$lh; "__DATA_BUNDLE_URL__"=$bundleUrl }
-    $sdef = BuildNotebookDefinition (Join-Path $Here "fabric\notebooks\_seed_data") $smap
+    $sdef = BuildNotebookDefinition (Join-Path $Here "fabric/notebooks/_seed_data") $smap
     $snb  = UpsertItem $ws "notebooks" "_seed_data" $sdef
     Log "  running _seed_data notebook (downloads the bundle into OneLake - the laptop never touches it)..."
     if (-not (Run-FabricNotebook $ws $snb.id "_seed_data" 120)) { Log "  cloud-seed did not complete cleanly - Delta load may find no files" "Yellow" }
@@ -468,13 +468,13 @@ function Phase-Data {
 
   # ---- load Delta tables (files are now in OneLake in both local + cloud-seed modes) ----
   $map = @{ $SRC.WorkspaceId=$ws; $SRC.LakehouseId=$lh }
-  $def = BuildNotebookDefinition (Join-Path $Here "fabric\notebooks\_load_data") $map
+  $def = BuildNotebookDefinition (Join-Path $Here "fabric/notebooks/_load_data") $map
   $nb  = UpsertItem $ws "notebooks" "_load_data" $def
   Log "  running _load_data notebook (loads Delta tables)..."
   Run-FabricNotebook $ws $nb.id "_load_data" 90 | Out-Null
 
   # ---- Eventhouse: ingest PiEvents parquet from OneLake into the KQL table ----
-  $ehRoot = Join-Path $Here "data\eventhouse"
+  $ehRoot = Join-Path $Here "data/eventhouse"
   if ($state.KustoUri -and $state.EventhouseSchemaApplied -eq $false) {
     Log "  skipping Eventhouse ingest - schema was not applied (fix the schema error above, then re-run: deploy.ps1 -Only data)" "Red"
   }
@@ -536,7 +536,7 @@ function Phase-Data {
       $SRC.LakehouseId = $lh
     }
     if ($state.KustoUri) { $map[$SRC.KustoHost] = (([Uri]$state.KustoUri).Host -replace '\.fabric\.microsoft\.com$','') }
-    $def = BuildNotebookDefinition (Join-Path $Here "fabric\notebooks\Multi-Site-Fanout") $map
+    $def = BuildNotebookDefinition (Join-Path $Here "fabric/notebooks/Multi-Site-Fanout") $map
     $nb  = UpsertItem $ws "notebooks" "Multi-Site-Fanout" $def
     $runBody = @{ executionData = @{ parameters = @{ N_SITES = @{ value = "$siteCount"; type = "int" } } } }
     try {
@@ -613,7 +613,7 @@ function Phase-Semantic {
     $SRC.SqlEndpoint = ($state.SqlEndpoint -split '\.')[0]
   }
   # Import semantic model (from exported semantic-main-import) - idempotent
-  $smFolder = Join-Path $Here "fabric\semanticmodel\semantic-main-import"
+  $smFolder = Join-Path $Here "fabric/semanticmodel/semantic-main-import"
   if (Test-Path $smFolder) {
     $def = BuildDefinition $smFolder $map
     $sm = UpsertItem $ws "semanticModels" "semantic-main-import" $def
@@ -661,7 +661,7 @@ function Phase-Semantic {
     }
   }
   # Report
-  $rptFolder = Join-Path $Here "fabric\report\Main_Overview"
+  $rptFolder = Join-Path $Here "fabric/report/Main_Overview"
   if ((Test-Path $rptFolder) -and $state.DatasetId) {
     $map2 = $map.Clone(); # report references dataset by id inside definition.pbir - rebind old dataset id
     $map2["ac47a321-8bc2-4aa1-99f0-fc1a3ce06e42"] = $state.DatasetId
@@ -681,7 +681,7 @@ function Phase-OGE {
   Log "PHASE oge: Direct Lake semantic model"
 
   # Direct Lake semantic model over lh_poc / oge schema (rebind workspace + lakehouse GUIDs).
-  $smFolder = Join-Path $Here "fabric\semanticmodel\semantic-oge"
+  $smFolder = Join-Path $Here "fabric/semanticmodel/semantic-oge"
   if (-not (Test-Path $smFolder)) { Log "  semantic-oge folder missing - skipping" "Yellow"; return }
   $map = @{ $SRC.WorkspaceId = $ws; $SRC.LakehouseId = $state.LakehouseId }
   $def = BuildDefinition $smFolder $map
@@ -693,7 +693,7 @@ function Phase-OGE {
   # Native Fabric ontology (Digital Twin Builder) over lh_poc - a first-class semantic
   # model of the OneGrid domain (plants, units, assets, sensors, work, advisories, outages,
   # predictions). Complements the notebook-derived knowledge graph in the web app.
-  $ontFolder = Join-Path $Here "fabric\digitaltwinbuilder\OneGridOntology"
+  $ontFolder = Join-Path $Here "fabric/digitaltwinbuilder/OneGridOntology"
   if (Test-Path $ontFolder) {
     try {
       $odef = BuildDefinition $ontFolder @{ $SRC.LakehouseId = $state.LakehouseId }
@@ -827,7 +827,7 @@ function Phase-ChatAgent {
   $imageRef = "$acrName.azurecr.io/$app`:$tag"
   Log "  creating registry '$acrName' + building dashboard image (several minutes)..."
   az acr create -n $acrName -g $rg -l $cfg.location --sku Basic --admin-enabled true -o none 2>$null
-  $buildLog = Join-Path $env:TEMP "pm_acrbuild_$tag.log"
+  $buildLog = Join-Path ([System.IO.Path]::GetTempPath()) "pm_acrbuild_$tag.log"
   $bjob = Start-Job -ScriptBlock {
     param($acr,$app,$tag,$here,$log)
     $env:PYTHONUTF8='1'; $env:PYTHONIOENCODING='utf-8'
@@ -1008,7 +1008,7 @@ function Phase-Teardown {
 # Non-destructive: only reads Fabric metadata and writes a local generated config file.
 function Phase-DataPlane {
   Log "PHASE dataplane: wiring the data-plane bolt-on (connectors)"
-  $connRoot = Join-Path $Here "bolt-ons\data-plane\connectors"
+  $connRoot = Join-Path $Here "bolt-ons/data-plane/connectors"
   if (-not (Test-Path $connRoot)) { Log "  data-plane connectors not found at $connRoot - skipping" "Yellow"; return }
 
   # Resolve workspace (standalone-safe: -Only dataplane skips Phase-Workspace).

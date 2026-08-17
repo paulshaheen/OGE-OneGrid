@@ -13,6 +13,10 @@ const PORT = process.env.DEPLOY_UI_PORT || 7333;
 const ROOT = path.resolve(__dirname, '..');          // solution root
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 
+// deploy.ps1 runs under Windows PowerShell on Windows, or PowerShell 7 (pwsh) on macOS/Linux.
+const IS_WIN = process.platform === 'win32';
+const PS = IS_WIN ? 'powershell' : 'pwsh';
+
 let deployChild = null;          // active deploy process
 const sseClients = new Set();    // connected log listeners
 const logBuffer = [];            // replay for late joiners
@@ -121,8 +125,8 @@ const server = http.createServer(async (req, res) => {
     add('Azure sign-in', acct.ok ? 'ok' : 'fail', acct.ok ? (JSON.parse(acct.stdout).user || {}).name || 'signed in' : 'run az login');
 
     // PowerShell
-    const ps = await run('powershell', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()']);
-    add('PowerShell', ps.ok ? 'ok' : 'fail', ps.ok ? 'v' + ps.stdout : 'powershell not found');
+    const ps = await run(PS, ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()']);
+    add(IS_WIN ? 'PowerShell' : 'PowerShell 7 (pwsh)', ps.ok ? 'ok' : 'fail', ps.ok ? 'v' + ps.stdout : (IS_WIN ? 'powershell not found' : 'pwsh not found - brew install powershell'));
 
     // containerapp extension (deploy auto-installs, so warn not fail)
     const ext = await az('extension list --query "[?name==\'containerapp\'].version" -o tsv');
@@ -203,7 +207,7 @@ const server = http.createServer(async (req, res) => {
       broadcast('=== Starting deployment (this can take 20-40 min) ===');
       const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH];
       if (cfg._skipData) args.push('-SkipData');
-      deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
+      deployChild = spawn(PS, args, { cwd: ROOT, windowsHide: true, detached: !IS_WIN, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
       const onData = (buf) => String(buf).split(/\r?\n/).forEach(l => { if (l.trim()) broadcast(l); });
       deployChild.stdout.on('data', onData);
       deployChild.stderr.on('data', onData);
@@ -242,7 +246,7 @@ const server = http.createServer(async (req, res) => {
     logBuffer.length = 0;
     broadcast('=== Wiring the data-plane bolt-on (PI -> Fabric forwarder) ===');
     const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH, '-Only', 'dataplane'];
-    deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
+    deployChild = spawn(PS, args, { cwd: ROOT, windowsHide: true, detached: !IS_WIN, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
     const onData = (buf) => String(buf).split(/\r?\n/).forEach(l => { if (l.trim()) broadcast(l); });
     deployChild.stdout.on('data', onData);
     deployChild.stderr.on('data', onData);
@@ -308,7 +312,7 @@ const server = http.createServer(async (req, res) => {
       if (haveConfig) args.push('-ConfigPath', CONFIG_PATH);
       if (sel.workspaceId) args.push('-TeardownWorkspaceId', sel.workspaceId);
       if (Array.isArray(sel.resourceGroups) && sel.resourceGroups.length) args.push('-TeardownResourceGroups', sel.resourceGroups.join(','));
-      deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
+      deployChild = spawn(PS, args, { cwd: ROOT, windowsHide: true, detached: !IS_WIN, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
       const onData = (buf) => String(buf).split(/\r?\n/).forEach(l => { if (l.trim()) broadcast(l); });
       deployChild.stdout.on('data', onData);
       deployChild.stderr.on('data', onData);
