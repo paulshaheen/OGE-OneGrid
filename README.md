@@ -10,14 +10,6 @@ and **Azure AI Foundry**. The **accelerator** — the thing you clone and deploy
 3. **A one-click localhost deploy wizard** — a local browser tool that provisions the whole
    solution into your Fabric capacity and streams live progress.
 
-> **The documentation site lives in its own repo now:**
-> [**paulshaheen/OneGrid-Site**](https://github.com/paulshaheen/OneGrid-Site) (public capabilities
-> site + trailer video). It is **not part of, deployed by, or required to run the accelerator** —
-> this repo is just the deployable solution.
-
-> **Try it first:** the live app and docs site let you explore before deploying anything.
-> Then run the wizard to stand the whole solution up in your own tenant.
-
 ---
 
 ## ⚡ Quick start — no terminal, just double-click (Windows)
