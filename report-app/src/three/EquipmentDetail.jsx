@@ -236,7 +236,7 @@ export function EquipmentDetail({ asset, theme, snapshot = {}, anomalies = [], r
         {/* dramatic accent rim keyed to health status */}
         <spotLight position={[-6, 9, 10]} angle={0.6} penumbra={0.8} intensity={1.4} color={s.color} distance={44} />
         <pointLight position={[8, 3, -8]} intensity={0.7} color={'#37e0d0'} />
-        <SafeB><Suspense fallback={null}><Environment preset={'sunset'} environmentIntensity={1.1} /></Suspense></SafeB>
+        <SafeB><Suspense fallback={null}><Environment files="/hdri/spruit_sunrise_1k.hdr" background backgroundBlurriness={0.06} environmentIntensity={1.1} /></Suspense></SafeB>
         <Model asset={asset} theme={theme} anchors={anchors} active={active} snapshot={snapshot}
           onPick={(a) => setActive((cur) => (cur === a.id ? null : a.id))} />
         <ContactShadows position={[0, 0.02, 0]} opacity={0.7} scale={30} blur={2.6} far={16} color={'#020509'} />
