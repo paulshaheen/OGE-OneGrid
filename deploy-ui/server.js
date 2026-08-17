@@ -235,23 +235,37 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { cancelled: true });
   }
 
-  // ---- opt-in: wire the data-plane bolt-on (generate forwarder appsettings) ----
+  // ---- opt-in: wire the data-plane bolt-on (build + run PI/SQL/Oracle forwarders locally) ----
   if (req.method === 'POST' && p === '/api/dataplane') {
     if (deployChild) return send(res, 409, { error: 'A process is already running.' });
     if (!fs.existsSync(CONFIG_PATH)) return send(res, 400, { error: 'no config.json found - deploy first' });
-    logBuffer.length = 0;
-    broadcast('=== Wiring the data-plane bolt-on (PI -> Fabric forwarder) ===');
-    const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH, '-Only', 'dataplane'];
-    deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
-    const onData = (buf) => String(buf).split(/\r?\n/).forEach(l => { if (l.trim()) broadcast(l); });
-    deployChild.stdout.on('data', onData);
-    deployChild.stderr.on('data', onData);
-    deployChild.on('close', (code) => {
-      broadcast(`=== Data-plane wiring exited (code ${code}) ===`);
-      broadcast('__DONE__');
-      deployChild = null;
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      // Merge the opt-in Data Plane selections into config.json (if the panel sent any).
+      if (body && body.trim()) {
+        try {
+          const dp = JSON.parse(body);
+          const cfg = readJsonLoose(CONFIG_PATH);
+          cfg.dataPlane = dp;
+          fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+        } catch (e) { return send(res, 400, { error: 'bad data-plane config: ' + String(e).slice(0, 200) }); }
+      }
+      logBuffer.length = 0;
+      broadcast('=== Data Plane: building + running the selected forwarders locally ===');
+      const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH, '-Only', 'dataplane'];
+      deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
+      const onData = (buf) => String(buf).split(/\r?\n/).forEach(l => { if (l.trim()) broadcast(l); });
+      deployChild.stdout.on('data', onData);
+      deployChild.stderr.on('data', onData);
+      deployChild.on('close', (code) => {
+        broadcast(`=== Data-plane step exited (code ${code}) ===`);
+        broadcast('__DONE__');
+        deployChild = null;
+      });
+      send(res, 200, { started: true });
     });
-    return send(res, 200, { started: true });
+    return;
   }
 
   // ---- list candidate deployments (Fabric workspaces + resource groups) for teardown ----

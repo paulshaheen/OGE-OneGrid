@@ -157,11 +157,26 @@ placeholders + git‑ignored local overrides), exactly like the shipped connecto
 
 ## Turnkey wiring from the deploy wizard
 
-After the accelerator is deployed, the wizard/`deploy.ps1` can generate a ready‑to‑fill
-`appsettings.generated.json` for the reference connector — pre‑populating the tenant id,
-workspace, stream name and the Eventstream **custom‑endpoint namespace FQDN** — so installing
-the forwarder is copy‑paste. You still supply the source (PI Web API host) and the client
-certificate. See the connector README and `deploy.ps1` (`-Only dataplane`).
+After the accelerator is deployed, open the wizard's **Set up Data Plane** panel (post‑deploy,
+step 3). Tick any of **PI Server**, **SQL Server**, **Oracle** — each is independent — fill the
+connection fields, choose the Eventstream auth (paste the custom‑endpoint **SAS connection
+string**, or an Entra app **ClientId + cert thumbprint**), and click **Build &amp; run locally**.
+The wizard (`deploy.ps1 -Only dataplane`) then, for each opted‑in source:
+
+1. auto‑resolves the Eventstream **custom‑endpoint FQDN / stream name** and writes
+   `appsettings.generated.json` (+ `tags.json` for PI, `sources.json` for SQL/Oracle);
+2. sets each DB connection string into a local `DBFWD_CONN_<NAME>` environment variable
+   (never written to disk);
+3. **`dotnet publish`** es the connector and **runs it on this machine** — installed as an
+   auto‑start Windows service (`PIFabricForwarder` / `DbFabricForwarder`) when the wizard is
+   run **as administrator**, otherwise started as a background process for the current session.
+
+All generated files (`appsettings.generated.json`, `tags.json`, `sources.json`, `publish-output/`)
+are git‑ignored. Requires the **.NET 8 SDK** on the machine. You can also run
+`deploy.ps1 -Only dataplane` directly with a `dataPlane` block in `config.json`.
+
+> Prefer secret‑free connections (Entra / Managed Identity for SQL, an Oracle Wallet for Oracle,
+> and the client‑certificate path for Fabric) for anything beyond first‑day testing.
 
 ---
 

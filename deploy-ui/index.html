@@ -332,8 +332,66 @@
 
       <div class="lstep">
         <div class="lstep-head"><span class="lstep-num">3</span><span>Set up Data Plane <span style="font-weight:400;color:var(--muted)">(optional)</span></span></div>
-        <div class="lstep-desc">Bring your own data — stream your PI, SQL Server or Oracle sources into this workspace instead of the synthetic feed. Generates a pre-filled forwarder config for your endpoint.</div>
-        <a class="launch-btn launch-primary" id="lb-dataplane" onclick="wireDataPlane(event)"><span class="li">🧩</span><span class="lt">Set up Data Plane<span class="ls">Generate the PI / SQL / Oracle → Fabric forwarder config</span></span></a>
+        <div class="lstep-desc">Bring your own data — build &amp; run PI / SQL Server / Oracle → Fabric forwarders <b>locally on this machine</b>. Tick the sources you want; each is independent.</div>
+        <details class="dp-panel" id="dpPanel">
+          <summary>Configure sources</summary>
+          <div class="adv-body" style="margin-top:10px">
+
+            <label class="agree"><input type="checkbox" id="dpPiOn" onchange="dpToggle()"> <b>PI Server</b> <span class="hint">stream PI Web API tags</span></label>
+            <div id="dpPiFields" class="dp-fields" style="display:none">
+              <div class="row">
+                <div><label>PI Web API base URL</label><input id="dpPiBaseUrl" placeholder="https://pi-host/piwebapi"></div>
+                <div><label>PI Data Server</label><input id="dpPiDataServer" placeholder="PISRV01"></div>
+              </div>
+              <label>Tags <span class="hint">one per line: tag,webId,plant,mode &nbsp;(mode = Channel | Poll | Skip)</span></label>
+              <textarea id="dpPiTags" rows="3" style="width:100%;box-sizing:border-box" placeholder="PLANT1:TAG_01.PV, REPLACE-WITH-WEBID, PLANT1, Channel"></textarea>
+            </div>
+
+            <label class="agree" style="margin-top:10px"><input type="checkbox" id="dpSqlOn" onchange="dpToggle()"> <b>SQL Server</b> <span class="hint">poll a table</span></label>
+            <div id="dpSqlFields" class="dp-fields" style="display:none">
+              <div class="row">
+                <div><label>Source name</label><input id="dpSqlName" placeholder="PLANT1_SQL_HIST"></div>
+                <div><label>Plant label</label><input id="dpSqlPlant" placeholder="PLANT1"></div>
+              </div>
+              <label>Connection string <span class="hint">prefer Entra / Managed Identity; kept only in a local env var</span></label>
+              <input id="dpSqlConn" placeholder="Server=...;Database=...;Authentication=Active Directory Default;Encrypt=True">
+              <label>Query <span class="hint">return columns: tag, &lt;watermark&gt;, value, plant · reference @watermark · ORDER BY watermark</span></label>
+              <textarea id="dpSqlQuery" rows="2" style="width:100%;box-sizing:border-box" placeholder="SELECT tag_name AS tag, sample_ts, value, plant FROM dbo.tag_history WHERE sample_ts > @watermark ORDER BY sample_ts"></textarea>
+              <div class="row">
+                <div><label>Watermark column</label><input id="dpSqlWm" placeholder="sample_ts"></div>
+                <div><label>Watermark type</label><select id="dpSqlWmType"><option>DateTime</option><option>Long</option></select></div>
+              </div>
+            </div>
+
+            <label class="agree" style="margin-top:10px"><input type="checkbox" id="dpOraOn" onchange="dpToggle()"> <b>Oracle</b> <span class="hint">poll a table</span></label>
+            <div id="dpOraFields" class="dp-fields" style="display:none">
+              <div class="row">
+                <div><label>Source name</label><input id="dpOraName" placeholder="PLANT2_ORACLE_HIST"></div>
+                <div><label>Plant label</label><input id="dpOraPlant" placeholder="PLANT2"></div>
+              </div>
+              <label>Connection string <span class="hint">prefer an Oracle Wallet / external auth; kept only in a local env var</span></label>
+              <input id="dpOraConn" placeholder="User Id=/;Data Source=tns_alias;">
+              <label>Query <span class="hint">return columns: tag, &lt;watermark&gt;, value, plant · reference :watermark · ORDER BY watermark</span></label>
+              <textarea id="dpOraQuery" rows="2" style="width:100%;box-sizing:border-box" placeholder="SELECT TAG_NAME AS tag, SEQ_NO, VALUE, PLANT FROM HIST.TAG_SAMPLES WHERE SEQ_NO > :watermark ORDER BY SEQ_NO FETCH FIRST 5000 ROWS ONLY"></textarea>
+              <div class="row">
+                <div><label>Watermark column</label><input id="dpOraWm" placeholder="SEQ_NO"></div>
+                <div><label>Watermark type</label><select id="dpOraWmType"><option>Long</option><option>DateTime</option></select></div>
+              </div>
+            </div>
+
+            <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+            <label>Fabric Eventstream auth <span class="hint">endpoint FQDN auto-resolves from your deploy</span></label>
+            <label style="margin-top:6px">Connection string (SAS) <span class="hint">easiest — copy from Eventstream → custom endpoint → SAS Key Authentication</span></label>
+            <input id="dpFabConn" placeholder="Endpoint=sb://...;SharedAccessKeyName=...;SharedAccessKey=...">
+            <div class="row">
+              <div><label>…or Entra app ClientId</label><input id="dpFabClient" placeholder="app registration client id"></div>
+              <div><label>Client cert thumbprint</label><input id="dpFabThumb" placeholder="cert in LocalMachine\My"></div>
+            </div>
+
+            <label class="agree" style="margin-top:10px"><input type="checkbox" id="dpInstall" checked> Install &amp; start as auto-start Windows service(s) <span class="hint">needs admin; otherwise runs as a background process now</span></label>
+          </div>
+        </details>
+        <a class="launch-btn launch-primary" id="lb-dataplane" onclick="wireDataPlane(event)"><span class="li">🧩</span><span class="lt">Build &amp; run locally<span class="ls">Compile the selected forwarder(s) and start them on this machine</span></span></a>
       </div>
 
       <details class="other-links">
@@ -772,16 +830,34 @@ function renderDemoStatus(s){
 
 function escapeHtml(str){ return String(str).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+function dpToggle(){
+  const show = (cbId, fieldsId) => { const f = document.getElementById(fieldsId); if(f) f.style.display = document.getElementById(cbId).checked ? '' : 'none'; };
+  show('dpPiOn','dpPiFields'); show('dpSqlOn','dpSqlFields'); show('dpOraOn','dpOraFields');
+}
+
 async function wireDataPlane(ev){
   ev.preventDefault();
   const el = ev.currentTarget; if(el.classList.contains('disabled')) return;
+  const v = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  const c = id => { const e = document.getElementById(id); return e ? e.checked : false; };
+  const dp = {
+    install: c('dpInstall'),
+    fabric: { connectionString: v('dpFabConn'), clientId: v('dpFabClient'), certThumbprint: v('dpFabThumb') },
+    pi:     { enabled: c('dpPiOn'),  baseUrl: v('dpPiBaseUrl'), dataServer: v('dpPiDataServer'), tags: v('dpPiTags') },
+    sql:    { enabled: c('dpSqlOn'), name: v('dpSqlName'), plant: v('dpSqlPlant'), connectionString: v('dpSqlConn'), query: v('dpSqlQuery'), watermarkColumn: v('dpSqlWm'), watermarkType: v('dpSqlWmType') },
+    oracle: { enabled: c('dpOraOn'), name: v('dpOraName'), plant: v('dpOraPlant'), connectionString: v('dpOraConn'), query: v('dpOraQuery'), watermarkColumn: v('dpOraWm'), watermarkType: v('dpOraWmType') }
+  };
+  if(!dp.pi.enabled && !dp.sql.enabled && !dp.oracle.enabled){ alert('Tick at least one source (PI Server, SQL Server, or Oracle) before building.'); return; }
+  if(!dp.fabric.connectionString && !dp.fabric.clientId){ if(!confirm('No Fabric Eventstream auth set (connection string or Entra app). The forwarder will build and run but can\u2019t publish until auth is set. Continue anyway?')) return; }
+  const openPanel = document.getElementById('dpPanel'); if(openPanel) openPanel.open = true;
   const ls = el.querySelector('.ls'); const orig = ls ? ls.textContent : '';
-  if(ls) ls.textContent = 'Generating forwarder config…'; el.classList.add('disabled');
+  if(ls) ls.textContent = 'Building + starting forwarder(s)…'; el.classList.add('disabled');
   try {
-    const r = await fetch('/api/dataplane',{method:'POST'}).then(r=>r.json());
+    const r = await fetch('/api/dataplane',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dp)}).then(r=>r.json());
     if(r.error){ if(ls) ls.textContent = orig; el.classList.remove('disabled'); alert('Data Plane setup failed: '+r.error); return; }
-    if(ls) ls.textContent = 'Config generated ✓ — see the log for next steps';
-    document.getElementById('resultBanner').innerHTML = '<div class="banner ok">🧩 Data-plane config generated at bolt-ons/data-plane/connectors/pi-forwarder/appsettings.generated.json. Follow the next-steps in the log (Entra app + certificate + Event Hubs Data Sender role), then install the forwarder.</div>';
+    if(ls) ls.textContent = 'Building + running locally — watch the log ↓';
+    const picked = [dp.pi.enabled&&'PI', dp.sql.enabled&&'SQL Server', dp.oracle.enabled&&'Oracle'].filter(Boolean).join(', ');
+    document.getElementById('resultBanner').innerHTML = '<div class="banner ok">🧩 Building and starting the '+escapeHtml(picked)+' forwarder(s) on this machine. Watch the log for build + service status. Configs are written under bolt-ons/data-plane/connectors/*/ (git-ignored).</div>';
   } catch(e){ if(ls) ls.textContent = orig; el.classList.remove('disabled'); alert('Data Plane error: '+e.message); }
 }
 

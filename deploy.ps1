@@ -1018,6 +1018,8 @@ function Phase-DataPlane {
   Log "PHASE dataplane: wiring the data-plane bolt-on (connectors)"
   $connRoot = Join-Path $Here "bolt-ons\data-plane\connectors"
   if (-not (Test-Path $connRoot)) { Log "  data-plane connectors not found at $connRoot - skipping" "Yellow"; return }
+  $piDir = Join-Path $connRoot "pi-forwarder"
+  $dbDir = Join-Path $connRoot "db-forwarder"
 
   # Resolve workspace (standalone-safe: -Only dataplane skips Phase-Workspace).
   $ws = $state.WorkspaceId
@@ -1053,38 +1055,175 @@ function Phase-DataPlane {
     Log "  no eventstream found in workspace - is the accelerator deployed?" "Yellow"
   }
 
-  # Emit a pre-filled appsettings for EACH connector that has one (secrets stay REPLACE-ME).
-  $written = @()
-  foreach ($cDir in (Get-ChildItem $connRoot -Directory)) {
-    $tmplPath = Join-Path $cDir.FullName "appsettings.json"
-    if (-not (Test-Path $tmplPath)) { continue }
-    try {
-      $cfgObj = Get-Content $tmplPath -Raw | ConvertFrom-Json
-      if ($cfgObj.PSObject.Properties.Name -notcontains 'Fabric') { continue }
-      $cfgObj.Fabric.FabricNamespaceFqdn = $fqdn
-      $cfgObj.Fabric.StreamName          = $eventHubName
-      $cfgObj.Fabric.TenantId            = if ($tenantId) { $tenantId } else { "REPLACE-ME" }
-      # ClientId + CertThumbprint intentionally stay REPLACE-ME (you create the Entra app + cert).
-      $outPath = Join-Path $cDir.FullName "appsettings.generated.json"
-      [IO.File]::WriteAllText($outPath, ($cfgObj | ConvertTo-Json -Depth 10), (New-Object System.Text.UTF8Encoding($false)))
-      Log "  wrote $outPath" "Green"
-      $written += $cDir.Name
-    } catch { Log "  skipped $($cDir.Name): $($_.Exception.Message)" "Yellow" }
+  # ---- shared helpers ------------------------------------------------------
+  $tenantVal = if ($tenantId) { $tenantId } else { "REPLACE-ME" }
+  $dp = $cfg.dataPlane
+  function Fill-FabricBlock($cfgObj) {
+    $cfgObj.Fabric.FabricNamespaceFqdn = $fqdn
+    $cfgObj.Fabric.StreamName          = $eventHubName
+    $cfgObj.Fabric.TenantId            = $tenantVal
+    if ($dp -and $dp.fabric) {
+      if ($dp.fabric.connectionString) { $cfgObj.Fabric.ConnectionString = $dp.fabric.connectionString }
+      if ($dp.fabric.clientId)         { $cfgObj.Fabric.ClientId         = $dp.fabric.clientId }
+      if ($dp.fabric.certThumbprint)   { $cfgObj.Fabric.CertThumbprint   = $dp.fabric.certThumbprint }
+    }
+    return $cfgObj
   }
-  if ($written.Count -eq 0) { Log "  no connector appsettings templates found under $connRoot" "Yellow" }
+  function Write-JsonFile($obj, $path) {
+    [IO.File]::WriteAllText($path, ($obj | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding($false)))
+  }
+
+  # Is any source opted in? If not, keep the classic "generate templates + steps" behavior.
+  $piOn  = [bool]($dp -and $dp.pi     -and $dp.pi.enabled)
+  $sqlOn = [bool]($dp -and $dp.sql    -and $dp.sql.enabled)
+  $oraOn = [bool]($dp -and $dp.oracle -and $dp.oracle.enabled)
+
+  if (-not ($piOn -or $sqlOn -or $oraOn)) {
+    # -------- legacy template-only mode (no opt-ins supplied) ---------------
+    $written = @()
+    foreach ($cDir in (Get-ChildItem $connRoot -Directory)) {
+      $tmplPath = Join-Path $cDir.FullName "appsettings.json"
+      if (-not (Test-Path $tmplPath)) { continue }
+      try {
+        $cfgObj = Get-Content $tmplPath -Raw | ConvertFrom-Json
+        if ($cfgObj.PSObject.Properties.Name -notcontains 'Fabric') { continue }
+        $cfgObj = Fill-FabricBlock $cfgObj
+        $outPath = Join-Path $cDir.FullName "appsettings.generated.json"
+        Write-JsonFile $cfgObj $outPath
+        Log "  wrote $outPath" "Green"
+        $written += $cDir.Name
+      } catch { Log "  skipped $($cDir.Name): $($_.Exception.Message)" "Yellow" }
+    }
+    if ($written.Count -eq 0) { Log "  no connector appsettings templates found under $connRoot" "Yellow" }
+    Log "  ----------------------------------------------------------------" "Green"
+    Log "  DATA PLANE - no PI/SQL/Oracle source was opted in." "Yellow"
+    Log "  Re-run from the wizard's Data Plane panel and enable a source to build + run a forwarder locally," "Gray"
+    Log "  or fill the appsettings.generated.json above and install the service manually." "Gray"
+    return
+  }
+
+  # -------- interactive opt-in mode: build + run forwarders locally ---------
+  $isAdmin = try { ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) } catch { $false }
+  $install = [bool]($dp.install)
+  if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+    Log "  the .NET SDK (dotnet) is required to build the forwarders but was not found - install .NET 8 SDK and retry." "Red"; return
+  }
+  if ($install -and -not $isAdmin) {
+    Log "  NOTE: not elevated - the forwarder(s) will be started as background processes (run now), not installed as a" "Yellow"
+    Log "        durable Windows service. Re-run the wizard 'as administrator' to install auto-start services." "Yellow"
+  }
+  Log ("  auth: " + $(if ($dp.fabric -and $dp.fabric.connectionString) { "Eventstream connection string (SAS)" } elseif ($dp.fabric -and $dp.fabric.clientId) { "Entra app certificate" } else { "NONE set - fill connection string or ClientId+CertThumbprint or the forwarder can't publish" })) "Gray"
+
+  # Publish a connector and either install it as a service (elevated) or start it now.
+  function Publish-And-Run($connDir, $serviceName, $dataDir, $installScript, $extraDataFiles) {
+    $pub = Join-Path $connDir "publish-output"
+    Log "  building $($serviceName)..."
+    $bl = & dotnet publish $connDir -c Release -r win-x64 --self-contained false -o $pub --nologo 2>&1
+    if ($LASTEXITCODE -ne 0) { Log "  build FAILED for $serviceName :" "Red"; ($bl | Select-Object -Last 8) | ForEach-Object { Log "    $_" "Red" }; return $false }
+    Log "  built $serviceName -> $pub" "Green"
+    # generated appsettings travels with the binaries as appsettings.json
+    $gen = Join-Path $connDir "appsettings.generated.json"
+    if (Test-Path $gen) { Copy-Item $gen (Join-Path $pub "appsettings.json") -Force }
+    if ($install -and $isAdmin) {
+      try {
+        & $installScript -PublishDir $pub | ForEach-Object { Log "    $_" "Gray" }
+        if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Force -Path $dataDir | Out-Null }
+        foreach ($f in $extraDataFiles) { if (Test-Path $f) { Copy-Item $f (Join-Path $dataDir (Split-Path $f -Leaf)) -Force } }
+        Restart-Service -Name $serviceName -ErrorAction SilentlyContinue
+        Log "  installed + started Windows service '$serviceName' (data: $dataDir)" "Green"
+        return $true
+      } catch { Log "  service install failed for $serviceName ($($_.Exception.Message)) - falling back to a background run" "Yellow" }
+    }
+    # background run (no admin, or install=false): data files live beside the exe
+    if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Force -Path $dataDir | Out-Null }
+    foreach ($f in $extraDataFiles) { if (Test-Path $f) { Copy-Item $f (Join-Path $dataDir (Split-Path $f -Leaf)) -Force } }
+    $exe = Join-Path $pub ($serviceName + ".exe")
+    if (-not (Test-Path $exe)) { Log "  expected $exe not found after publish" "Red"; return $false }
+    Start-Process -FilePath $exe -WorkingDirectory $pub -WindowStyle Hidden | Out-Null
+    Log "  started $serviceName as a background process (runs until reboot/logout). exe: $exe" "Green"
+    return $true
+  }
+
+  $ran = @()
+
+  # ----- PI forwarder -----
+  if ($piOn) {
+    Log "  -- PI server -> Fabric --"
+    $tmpl = Get-Content (Join-Path $piDir "appsettings.json") -Raw | ConvertFrom-Json
+    $tmpl = Fill-FabricBlock $tmpl
+    if ($dp.pi.baseUrl)    { $tmpl.PiWebApi.BaseUrl    = $dp.pi.baseUrl }
+    if ($dp.pi.dataServer) { $tmpl.PiWebApi.DataServer = $dp.pi.dataServer }
+    $piData = 'C:\ProgramData\PIFabricForwarder'
+    $tmpl.Queue.Path       = Join-Path $piData 'queue.db'
+    $tmpl.Tags.ConfigPath  = Join-Path $piData 'tags.json'
+    Write-JsonFile $tmpl (Join-Path $piDir "appsettings.generated.json")
+    # tags.json from the pasted "tag,webId,plant,mode" lines
+    $tagObjs = @()
+    foreach ($line in (($dp.pi.tags -as [string]) -split "`n")) {
+      $t = $line.Trim(); if (-not $t) { continue }
+      $parts = @($t -split ',' | ForEach-Object { $_.Trim() })
+      $tag = $parts[0]; if (-not $tag) { continue }
+      $webId = if ($parts.Count -ge 2 -and $parts[1]) { $parts[1] } else { 'REPLACE-ME-WITH-PI-WEBID' }
+      $plant = if ($parts.Count -ge 3 -and $parts[2]) { $parts[2] } elseif ($tag -match '^([^:]+):') { $Matches[1] } else { 'PLANT1' }
+      $mode  = if ($parts.Count -ge 4 -and $parts[3]) { $parts[3] } else { 'Channel' }
+      $tagObjs += [ordered]@{ tag=$tag; webId=$webId; plant=$plant; mode=$mode }
+    }
+    $tagsPath = Join-Path $piDir "tags.json"
+    Write-JsonFile @($tagObjs) $tagsPath
+    Log "  wrote appsettings.generated.json + tags.json ($($tagObjs.Count) tag(s))" "Green"
+    $installScript = Join-Path $piDir "Install\Install-PIFabricForwarder.ps1"
+    if (Publish-And-Run $piDir 'PIFabricForwarder' $piData $installScript @($tagsPath)) { $ran += 'PI' }
+  }
+
+  # ----- DB forwarder (SQL Server and/or Oracle) -----
+  if ($sqlOn -or $oraOn) {
+    Log "  -- SQL/Oracle -> Fabric --"
+    $dbData = 'C:\ProgramData\DbFabricForwarder'
+    $tmpl = Get-Content (Join-Path $dbDir "appsettings.json") -Raw | ConvertFrom-Json
+    $tmpl = Fill-FabricBlock $tmpl
+    $tmpl.Queue.Path = Join-Path $dbData 'queue.db'
+    $tmpl.DbForwarder.SourcesConfigPath = Join-Path $dbData 'sources.json'
+    Write-JsonFile $tmpl (Join-Path $dbDir "appsettings.generated.json")
+    # build sources.json + set DBFWD_CONN_* env vars
+    $sources = @()
+    function New-DbSource($s, $provider) {
+      $connName = (($s.name -as [string]) -replace '[^A-Za-z0-9]','_').ToUpper()
+      if (-not $connName) { $connName = $provider.ToUpper() }
+      $wmType = if ($s.watermarkType) { $s.watermarkType } else { 'DateTime' }
+      $initWm = if ($s.initialWatermark) { $s.initialWatermark } elseif ($wmType -eq 'Long') { '0' } else { '2026-01-01T00:00:00Z' }
+      # set the connection secret in the environment (Machine if elevated, else User+Process)
+      if ($s.connectionString) {
+        [Environment]::SetEnvironmentVariable("DBFWD_CONN_$connName", $s.connectionString, 'Process')
+        [Environment]::SetEnvironmentVariable("DBFWD_CONN_$connName", $s.connectionString, 'User')
+        if ($isAdmin) { [Environment]::SetEnvironmentVariable("DBFWD_CONN_$connName", $s.connectionString, 'Machine') }
+      }
+      return [ordered]@{
+        name=$s.name; provider=$provider; connectionName=$connName; pollIntervalSeconds=15;
+        watermarkColumn=$s.watermarkColumn; watermarkType=$wmType; initialWatermark=$initWm;
+        overlapSeconds=2; shape='Narrow'; plant=$s.plant; source=$provider.ToLower(); query=$s.query;
+        map=[ordered]@{ tag='tag'; ts=$s.watermarkColumn; value='value'; plant='plant'; quality='quality'; webId='tag' }
+      }
+    }
+    if ($sqlOn) { $sources += (New-DbSource $dp.sql    'SqlServer') }
+    if ($oraOn) { $sources += (New-DbSource $dp.oracle 'Oracle') }
+    $sourcesPath = Join-Path $dbDir "sources.json"
+    Write-JsonFile @($sources) $sourcesPath
+    Log "  wrote appsettings.generated.json + sources.json ($($sources.Count) source(s)); DBFWD_CONN_* set" "Green"
+    if ($sqlOn -and (-not $dp.sql.connectionString))    { Log "  WARNING: SQL source has no connection string - set DBFWD_CONN_* before it can read." "Yellow" }
+    if ($oraOn -and (-not $dp.oracle.connectionString)) { Log "  WARNING: Oracle source has no connection string - set DBFWD_CONN_* before it can read." "Yellow" }
+    $installScript = Join-Path $dbDir "Install\Install-DbFabricForwarder.ps1"
+    if (Publish-And-Run $dbDir 'DbFabricForwarder' $dbData $installScript @($sourcesPath)) { $ran += 'DB' }
+  }
 
   Log "  ----------------------------------------------------------------" "Green"
-  Log "  DATA PLANE - next steps to go live:" "Green"
-  Log "   1. Create an Entra app registration and upload a client certificate." "Gray"
-  Log "   2. Grant that app 'Azure Event Hubs Data Sender' on the Eventstream custom endpoint." "Gray"
-  Log "   3. Fill ClientId + CertThumbprint in each appsettings.generated.json (FQDN/Tenant prefilled)." "Gray"
-  if ($fqdn -like 'REPLACE-ME*') {
-    Log "   4. FQDN not auto-resolved: open Eventstream > custom endpoint 'PIForwarderEndpoint'" "Gray"
-    Log "      > 'SAS Key Authentication' and copy the Event Hub namespace host into FabricNamespaceFqdn." "Gray"
+  if ($ran.Count -gt 0) {
+    Log "  DATA PLANE running locally: $($ran -join ', ') forwarder(s) on $env:COMPUTERNAME." "Green"
+    Log "  Eventstream target: $fqdn / $eventHubName" "Gray"
+    if ($fqdn -like 'REPLACE-ME*') { Log "  (FQDN not auto-resolved - paste the Eventstream custom-endpoint connection string in the wizard's Data Plane panel.)" "Yellow" }
+    Log "  Verify: Get-Service PIFabricForwarder,DbFabricForwarder  |  logs under C:\\ProgramData\\*FabricForwarder\\logs" "Gray"
+  } else {
+    Log "  DATA PLANE: no forwarder started (see errors above)." "Yellow"
   }
-  Log "   5. Configure the source + install:" "Gray"
-  Log "      - pi-forwarder: populate tags.json (see connectors/pi-forwarder/README.md)" "Gray"
-  Log "      - db-forwarder: populate sources.json + set DBFWD_CONN_* (see connectors/db-forwarder/README.md)" "Gray"
 }
 
 # ============================ run =============================================
