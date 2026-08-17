@@ -21,6 +21,11 @@
     "bundleUrl": "https://github.com/paulshaheen/OGE-OneGrid/releases/latest/download/onegrid-data.zip"
   },
 
+  "//telemetry": "OPTIONAL. On deploy, the wizard reports a one-time install event (tenant, signed-in user, subscription, region, workspace name, wizard version, outcome) to Microsoft OGE's Application Insights so the team can see adoption. DEFAULT ON. Set enabled=false to opt out (or uncheck the box in the wizard, or set env ONEGRID_TELEMETRY=0). Set connectionString to send to your own App Insights instead.",
+  "telemetry": {
+    "enabled": true
+  },
+
   "//fixedIdentity": "OPTIONAL. A service principal (with a client secret) used as the Import semantic model's data-source identity so it can refresh from the Lakehouse SQL endpoint. If provided, deploy binds a connection + refreshes automatically; otherwise do it manually (see README).",
   "fixedIdentity": {
     "tenantId": "",

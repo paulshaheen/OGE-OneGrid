@@ -68,6 +68,42 @@ function FTok { Tok "https://api.fabric.microsoft.com" }
 function PbiTok { Tok "https://analysis.windows.net/powerbi/api" }
 function KustoTok($u){ Tok $u }
 
+# ============================ install telemetry ==============================
+# Fire-and-forget install event to a central Application Insights so the OGE team
+# can see adoption. DEFAULT ON with opt-out: uncheck the box in the wizard, set
+# config.telemetry.enabled=false, or set env ONEGRID_TELEMETRY=0. The endpoint is
+# overridable via env ONEGRID_TELEMETRY_CONNSTR or config.telemetry.connectionString.
+# The ingestion key is a write-only telemetry key; its presence in a public repo is
+# expected and by design.
+$WizardVersion    = "1.0.0"
+$TelemetryConnStr = "InstrumentationKey=7c64a144-82d7-4e02-9a4d-c16a2b108f2c;IngestionEndpoint=https://eastus2-3.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus2.livediagnostics.monitor.azure.com/;ApplicationId=1b85964c-e4ab-487a-a0cb-9d3b3e87c7ad"
+$script:TelemetryOn = $false
+$script:TelemetryConnStrEff = $null
+$script:TelemetryCtx = @{}
+function Send-Telemetry($eventName, $props, $measurements) {
+  try {
+    if (-not $script:TelemetryOn -or -not $script:TelemetryConnStrEff) { return }
+    $cs   = $script:TelemetryConnStrEff
+    $ikey = ([regex]::Match($cs, 'InstrumentationKey=([^;]+)')).Groups[1].Value
+    $endp = ([regex]::Match($cs, 'IngestionEndpoint=([^;]+)')).Groups[1].Value
+    if (-not $ikey) { return }
+    if (-not $endp) { $endp = 'https://dc.services.visualstudio.com/' }
+    $p = @{}
+    if ($script:TelemetryCtx) { $script:TelemetryCtx.GetEnumerator() | ForEach-Object { if ($null -ne $_.Value -and "$($_.Value)".Length) { $p[$_.Key] = "$($_.Value)" } } }
+    if ($props) { $props.GetEnumerator() | ForEach-Object { $p[$_.Key] = "$($_.Value)" } }
+    $m = if ($measurements) { $measurements } else { @{} }
+    $envelope = @{
+      name = "Microsoft.ApplicationInsights.Event"
+      time = (Get-Date).ToUniversalTime().ToString("o")
+      iKey = $ikey
+      tags = @{ "ai.cloud.role" = "onegrid-wizard"; "ai.application.ver" = $WizardVersion }
+      data = @{ baseType = "EventData"; baseData = @{ ver = 2; name = $eventName; properties = $p; measurements = $m } }
+    }
+    $body = $envelope | ConvertTo-Json -Depth 8 -Compress
+    Invoke-RestMethod -Uri ($endp.TrimEnd('/') + '/v2/track') -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 8 | Out-Null
+  } catch {}
+}
+
 function FGet($path){ Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/$path" -Headers @{ Authorization="Bearer $(FTok)" } }
 function FDelete($path){ Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/$path" -Method Delete -Headers @{ Authorization="Bearer $(FTok)" } }
 function FPost($path,$body){
@@ -161,6 +197,28 @@ $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 az account show 1>$null 2>$null; if ($LASTEXITCODE -ne 0) { throw "Run 'az login' first." }
 if (-not $cfg.subscriptionId) { $cfg.subscriptionId = az account show --query id -o tsv }
 az account set --subscription $cfg.subscriptionId 1>$null
+
+# ---- resolve install telemetry (default on; opt out via wizard checkbox, config, or env) ----
+$script:TelemetryConnStrEff = if ($env:ONEGRID_TELEMETRY_CONNSTR) { $env:ONEGRID_TELEMETRY_CONNSTR } elseif ($cfg.telemetry -and $cfg.telemetry.connectionString) { $cfg.telemetry.connectionString } else { $TelemetryConnStr }
+$script:TelemetryOn = $true
+if ($env:ONEGRID_TELEMETRY -eq '0') { $script:TelemetryOn = $false }
+if ($cfg.telemetry -and $cfg.telemetry.enabled -eq $false) { $script:TelemetryOn = $false }
+if (-not $script:TelemetryConnStrEff) { $script:TelemetryOn = $false }
+$telAcct = try { az account show -o json 2>$null | ConvertFrom-Json } catch { $null }
+$script:TelemetryCtx = @{
+  tenantId       = $telAcct.tenantId
+  user           = $telAcct.user.name
+  subscriptionId = $cfg.subscriptionId
+  region         = $cfg.location
+  workspaceName  = $cfg.fabric.workspaceName
+  wizardVersion  = $WizardVersion
+  os             = [System.Environment]::OSVersion.Platform.ToString()
+}
+$script:deployStart = Get-Date
+if ($script:TelemetryOn) { Log "  telemetry ON: reporting an install event to Microsoft OGE (opt out in the wizard, or ONEGRID_TELEMETRY=0)" "DarkGray" }
+else { Log "  telemetry OFF (opted out)" "DarkGray" }
+Send-Telemetry "OneGridDeployStart" @{ outcome = "started"; only = ($Only -join ',') } @{}
+
 $state = @{}   # collects created IDs across phases
 $script:phaseErrors = @()   # non-fatal phase issues, summarized at the end
 
@@ -1047,4 +1105,10 @@ elseif ($state.ChatAgentFailed) { Log "Chat agent: NOT DEPLOYED (see issues abov
 Log "Workspace:  https://app.fabric.microsoft.com/groups/$($state.WorkspaceId)" "Green"
 [IO.File]::WriteAllText((Join-Path $Here "last-deploy-state.json"), ($state | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
 Log "State written to last-deploy-state.json" "Green"
+$durSec = [int]((Get-Date) - $script:deployStart).TotalSeconds
+Send-Telemetry "OneGridDeployComplete" @{
+  outcome   = $(if ($script:phaseErrors.Count -eq 0) { "success" } else { "issues" })
+  chatAgent = [bool]$state.AppUrl
+  region    = $state.ChatAgentLocation
+} @{ durationSec = $durSec; issueCount = $script:phaseErrors.Count }
 if ($script:phaseErrors.Count -gt 0) { exit 1 }

@@ -206,6 +206,25 @@ README for build/deploy details (Azure Static Web Apps + the `AZURE_STATIC_WEB_A
 
 ---
 
+## 📊 Telemetry & privacy
+
+To help the OGE team see adoption, the wizard reports a **one-time install event** to a
+Microsoft **Application Insights** when you deploy. It records: your Azure **tenant** and
+**signed-in user**, **subscription**, **region**, chosen **workspace name**, **wizard version**,
+and the **deploy outcome** (success / issues / duration). **Nothing from inside your workspace or
+data is sent.**
+
+It is **on by default** and easy to opt out — any one of:
+- **uncheck** the "Share an install event" box on the wizard's config screen, or
+- set `"telemetry": { "enabled": false }` in `config.json`, or
+- set the environment variable `ONEGRID_TELEMETRY=0` before deploying.
+
+The send is fire-and-forget and never blocks or fails a deployment. To point it at **your own**
+Application Insights, set `telemetry.connectionString` in `config.json` (or env
+`ONEGRID_TELEMETRY_CONNSTR`).
+
+---
+
 ## 📦 The historical-data bundle (Git LFS)
 
 The bundled parquet under `data/` travels **with the repo** via Git LFS (`.gitattributes`
