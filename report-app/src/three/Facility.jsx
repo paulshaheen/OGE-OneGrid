@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, ContactShadows, Html, OrbitControls, Line } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
+import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 import { statusOf } from '../lib/format.js';
 import { EquipmentGeometry, equipmentType } from './Equipment.jsx';
 import { NATION, STATES } from './usaGeo.js';
@@ -15,8 +16,8 @@ class SafeBoundary extends Component {
   componentDidCatch() {}
   render() { return this.state.failed ? (this.props.fallback ?? null) : this.props.children; }
 }
-function SafeEnvironment({ preset }) {
-  return <SafeBoundary fallback={null}><Suspense fallback={null}><Environment preset={preset} /></Suspense></SafeBoundary>;
+function SafeEnvironment({ preset, intensity = 1 }) {
+  return <SafeBoundary fallback={null}><Suspense fallback={null}><Environment preset={preset} environmentIntensity={intensity} /></Suspense></SafeBoundary>;
 }
 
 // ── Geographic placement of each plant on the US map (lon/lat) ──────────────
@@ -198,7 +199,7 @@ function CameraRig({ mode, focus }) {
   const settling = useRef(true);
   const settleUntil = useRef(0);
   useEffect(() => {
-    if (mode === 'sites') { target.current.set(0, 0, 2); goal.current.set(0, 150, 118); }
+    if (mode === 'sites') { target.current.set(0, 0, 2); goal.current.set(6, 95, 150); }
     else if (focus) { target.current.set(focus[0], 2, focus[2]); goal.current.set(focus[0] + 2, 14, focus[2] + 20); }
     else { target.current.set(0, 2, 0); goal.current.set(0, 22, 44); }
     settling.current = true;
@@ -261,42 +262,93 @@ function MapMarker({ site, theme, hovered, onHover, onEnter }) {
   );
 }
 
-function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
-  const t = theme.three;
-  const sites = useMemo(() => plants.map((p) => {
-    const geo = geoFor(p.name);
-    const [x, z] = project(geo.lon, geo.lat);
-    return {
-      name: p.name, city: geo.city, status: worstOf(p.unitList), pos: [x, 0, z],
-      assetCount: (p.unitList || []).reduce((s, u) => s + (u.assets || []).length, 0),
-      critical: (p.unitList || []).reduce((s, u) => s + (u.assets || []).filter((a) => a.status === 'critical').length, 0),
-    };
-  }), [plants]);
+// point-in-polygon (ray cast) for clipping terrain/lights to the US outline
+function pointInPoly(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+    if (((zi > z) !== (zj > z)) && (x < (xj - xi) * (z - zi) / (zj - zi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+const CITY_METROS = [[-74,40.7,10],[-118.2,34,9],[-87.6,41.8,8],[-95.4,29.8,6],[-96.8,32.8,6],[-112,33.4,5],[-75.2,40,5],[-122.4,37.8,6],[-122.3,47.6,5],[-80.2,25.8,5],[-84.4,33.7,5],[-71.1,42.4,5],[-77,38.9,5],[-105,39.7,4],[-93.3,45,4],[-83,42.3,4],[-115.1,36.2,3],[-122.7,45.5,3],[-111.9,40.8,3],[-90.2,38.6,3],[-94.6,39.1,3],[-86.8,36.2,3],[-80.8,35.2,3],[-81.4,28.5,3],[-98.5,29.4,3],[-97.5,35.5,3],[-90.1,29.95,3],[-76.6,39.3,3],[-82.4,27.9,3]];
+const GLOW_TEX = (() => {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.4, 'rgba(255,244,214,0.6)'); rg.addColorStop(1, 'rgba(255,240,200,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+})();
 
-  const land = useMemo(() => {
-    const shape = new THREE.Shape();
-    (NATION[0] || []).forEach(([lon, lat], i) => { const [x, z] = project(lon, lat); if (i) shape.lineTo(x, -z); else shape.moveTo(x, -z); });
-    return new THREE.ShapeGeometry(shape);
+function CityLights({ points }) {
+  const ref = useRef();
+  useFrame((st) => { if (ref.current) ref.current.material.size = 0.6 * (0.82 + 0.22 * Math.sin(st.clock.elapsedTime * 3.2)); });
+  return <primitive ref={ref} object={points} />;
+}
+
+function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
+  // Build the 3D night map once: terrain heightfield clipped to the US, city lights,
+  // draped neon borders, and a height sampler for placing markers on the terrain.
+  const map = useMemo(() => {
+    const poly = (NATION[0] || []).map(([lon, lat]) => { const [x, z] = project(lon, lat); return [x, z]; });
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    poly.forEach(([x, z]) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z); });
+    const w = maxX - minX + 8, d = maxZ - minZ + 8, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    const simplex = new SimplexNoise(); const seaY = -1.6, HS = 3.6;
+    const heightAt = (wx, wz) => {
+      if (!pointInPoly(wx, wz, poly)) return seaY;
+      const n = simplex.noise(wx * 0.02, wz * 0.02) * 0.5 + simplex.noise(wx * 0.055, wz * 0.055) * 0.3 + simplex.noise(wx * 0.14, wz * 0.14) * 0.2;
+      return Math.max(0.06, (n + 0.5)) * HS;
+    };
+    // terrain
+    const NX = 220, NZ = Math.round(NX * d / w);
+    const geo = new THREE.PlaneGeometry(w, d, NX, NZ); geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position; const cols = [];
+    const cLow = new THREE.Color('#0c2b46'), cMid = new THREE.Color('#12463a'), cHi = new THREE.Color('#3f5238'), cPeak = new THREE.Color('#6b6f63');
+    for (let i = 0; i < pos.count; i++) {
+      const wx = pos.getX(i) + cx, wz = pos.getZ(i) + cz; const h = heightAt(wx, wz); pos.setY(i, h);
+      let c; if (h <= seaY + 0.01) c = cLow; else { const e = h / HS; c = e < 0.4 ? cMid.clone().lerp(cHi, e / 0.4) : cHi.clone().lerp(cPeak, (e - 0.4) / 0.6); }
+      cols.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.computeVertexNormals();
+    const terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.1, roughness: 0.92, envMapIntensity: 0.4 }));
+    terrain.position.set(cx, 0, cz); terrain.receiveShadow = true;
+    // city lights
+    const lp = [], lc = []; const warm = new THREE.Color('#ffe6b0'), cool = new THREE.Color('#bcd8ff');
+    const addLight = (x, z) => { const c = warm.clone().lerp(cool, Math.random() * 0.5); const b = 0.6 + Math.random() * 0.7; lp.push(x, heightAt(x, z) + 0.28, z); lc.push(c.r * b, c.g * b, c.b * b); };
+    CITY_METROS.forEach(([lon, lat, wt]) => { const [mx, mz] = project(lon, lat); const n = Math.round(wt * 16);
+      for (let k = 0; k < n; k++) { const r = (Math.random() ** 1.6) * wt * 0.9, a = Math.random() * Math.PI * 2, x = mx + Math.cos(a) * r, z = mz + Math.sin(a) * r; if (pointInPoly(x, z, poly)) addLight(x, z); } });
+    let tries = 0, added = 0; while (added < 650 && tries < 6000) { tries++; const x = minX + Math.random() * (maxX - minX), z = minZ + Math.random() * (maxZ - minZ); if (pointInPoly(x, z, poly)) { addLight(x, z); added++; } }
+    const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); cg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
+    const cityLights = new THREE.Points(cg, new THREE.PointsMaterial({ size: 0.6, map: GLOW_TEX, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, toneMapped: false }));
+    // draped borders
+    const drape = (ring, off) => ring.map(([lon, lat]) => { const [x, z] = project(lon, lat); return [x, heightAt(x, z) + off, z]; });
+    const nationLine = drape(NATION[0], 0.25);
+    const stateLines = STATES.map((r) => drape(r, 0.15));
+    return { terrain, cityLights, nationLine, stateLines, heightAt };
   }, []);
-  const nationLine = useMemo(() => (NATION[0] || []).map(([lon, lat]) => { const [x, z] = project(lon, lat); return [x, 0.08, z]; }), []);
-  const stateLines = useMemo(() => STATES.map((r) => r.map(([lon, lat]) => { const [x, z] = project(lon, lat); return [x, 0.06, z]; })), []);
+
+  const sites = useMemo(() => plants.map((p) => {
+    const geo = geoFor(p.name); const [x, z] = project(geo.lon, geo.lat);
+    return { name: p.name, city: geo.city, status: worstOf(p.unitList), pos: [x, map.heightAt(x, z), z],
+      assetCount: (p.unitList || []).reduce((s, u) => s + (u.assets || []).length, 0),
+      critical: (p.unitList || []).reduce((s, u) => s + (u.assets || []).filter((a) => a.status === 'critical').length, 0) };
+  }), [plants, map]);
 
   return (
     <>
-      <color attach="background" args={[t.bg]} />
-      <fog attach="fog" args={[t.fog[0], 200, 520]} />
-      <hemisphereLight intensity={t.ambient + 0.15} groundColor={t.ground} />
-      <directionalLight position={[60, 120, 40]} intensity={t.sun * 0.8} />
-      <SafeEnvironment preset={t.env} />
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}><planeGeometry args={[900, 900]} /><meshStandardMaterial color={t.ground} metalness={0.2} roughness={0.95} /></mesh>
-      <mesh geometry={land} rotation-x={-Math.PI / 2} position={[0, 0.02, 0]}><meshStandardMaterial color="#0f1c30" metalness={0.1} roughness={0.9} transparent opacity={0.94} /></mesh>
-      <Line points={nationLine} color={theme.accent} lineWidth={2.2} transparent opacity={0.85} />
-      {stateLines.map((pts, i) => <Line key={i} points={pts} color="#2c4a6e" lineWidth={1} transparent opacity={0.45} />)}
+      <color attach="background" args={['#02040a']} />
+      <fog attach="fog" args={['#02040a', 150, 470]} />
+      <hemisphereLight intensity={0.05} groundColor={'#0a0f18'} color={'#33405a'} />
+      <directionalLight position={[40, 120, 60]} intensity={0.28} color={'#5f79b8'} />
+      <primitive object={map.terrain} />
+      <CityLights points={map.cityLights} />
+      <Line points={map.nationLine} color={theme.accent} lineWidth={2.4} transparent opacity={0.95} />
+      {map.stateLines.map((pts, i) => <Line key={i} points={pts} color="#1f6f9c" lineWidth={1.1} transparent opacity={0.5} />)}
       {sites.map((s) => <MapMarker key={s.name} site={s} theme={theme} hovered={hovered} onHover={onHover} onEnter={onEnter} />)}
       <CameraRig mode="sites" />
       <EffectComposer disableNormalPass>
-        <Bloom mipmapBlur intensity={t.bloom * 1.1} luminanceThreshold={0.55} luminanceSmoothing={0.2} />
-        <Vignette eskil={false} offset={0.22} darkness={0.82} />
+        <Bloom mipmapBlur intensity={0.5} luminanceThreshold={0.0} luminanceSmoothing={0.2} />
       </EffectComposer>
     </>
   );
@@ -311,9 +363,10 @@ function SceneInterior({ plant, theme, selected, onSelect, values }) {
     <>
       <color attach="background" args={[t.bg]} />
       <fog attach="fog" args={[t.fog[0], 70, 260]} />
-      <hemisphereLight intensity={t.ambient + 0.15} groundColor="#2b3524" />
-      <directionalLight position={[24, 40, 18]} intensity={t.sun} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-70} shadow-camera-right={70} shadow-camera-top={70} shadow-camera-bottom={-70} />
-      <SafeEnvironment preset={t.env} />
+      <hemisphereLight intensity={0.6} color={'#eaf1ff'} groundColor="#2b3524" />
+      <directionalLight position={[24, 40, 18]} intensity={2.2} color={'#fff4e6'} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-70} shadow-camera-right={70} shadow-camera-top={70} shadow-camera-bottom={-70} shadow-bias={-0.0002} />
+      <directionalLight position={[-20, 14, -10]} intensity={0.7} color={'#9db8ff'} />
+      <SafeEnvironment preset="sunset" intensity={1.1} />
       {/* terrain: grassy ground so the plant sits on land, not a neon grid */}
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]} receiveShadow><planeGeometry args={[600, 600]} /><meshStandardMaterial color="#33402a" metalness={0.05} roughness={1} /></mesh>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.01, 0]} receiveShadow><circleGeometry args={[120, 48]} /><meshStandardMaterial color="#3a4630" metalness={0.05} roughness={1} /></mesh>
@@ -351,7 +404,9 @@ export function Facility({ model, theme, selected, onSelect, activePlant, onEnte
   const [hovered, setHovered] = useState(null);
   const plant = useMemo(() => (model?.plants || []).find((p) => p.name === activePlant) || null, [model, activePlant]);
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 150, 118], fov: 40 }} gl={{ antialias: true, powerPreference: 'high-performance', toneMappingExposure: 1.05 }}>
+    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 150, 118], fov: 40 }}
+      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      onCreated={({ gl }) => { gl.toneMapping = THREE.AgXToneMapping; gl.toneMappingExposure = 1.0; }}>
       {plant
         ? <SceneInterior plant={plant} theme={theme} selected={selected} onSelect={onSelect} values={values} />
         : <SceneMap plants={model?.plants || []} theme={theme} hovered={hovered} onHover={setHovered} onEnter={onEnterPlant} />}
