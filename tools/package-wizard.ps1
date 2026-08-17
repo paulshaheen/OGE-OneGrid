@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 # Directory names excluded anywhere in the tree.
-$excludeDirs  = @('.git','node_modules','data','docs-site','dist','.venv','__pycache__','.vs')
+$excludeDirs  = @('.git','node_modules','data','docs-site','dist','.venv','__pycache__','.vs','bin','obj')
 # Specific files excluded (machine/local state).
 $excludeFiles = @('config.json','last-deploy-state.json')
 

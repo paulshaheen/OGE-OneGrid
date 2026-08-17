@@ -40,38 +40,51 @@ $extractRoot = Join-Path $Home_ 'OneGrid-Wizard'      # zip root folder
 $server      = Join-Path $extractRoot 'deploy-ui\server.js'
 $innerBoot   = Join-Path $extractRoot 'deploy-ui\bootstrap.ps1'
 
-if ((Test-Path $server) -and -not $Force) {
-  Step 1 'Wizard already installed - reusing it'
-  Ok "$extractRoot"
-  Info "(set ONEGRID_FORCE=1 to re-download the latest version)"
+function Test-Complete($root){
+  (Test-Path (Join-Path $root 'deploy-ui\server.js')) -and
+  (Test-Path (Join-Path $root 'deploy.ps1')) -and
+  (Test-Path (Join-Path $root 'fabric\notebooks'))
 }
-else {
-  Step 1 'Downloading the wizard'
-  Info "from $ZipUrl"
-  New-Item -ItemType Directory -Force -Path $Home_ | Out-Null
-  $zip = Join-Path $Home_ 'OneGrid-Wizard.zip'
-  try {
-    $ProgressPreference = 'SilentlyContinue'   # faster large downloads
-    Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zip
-  } catch {
-    Die "could not download the wizard ($($_.Exception.Message)). Check your connection, or download OneGrid-Wizard.zip manually and extract to $Home_."
-  }
-  $mb = [math]::Round((Get-Item $zip).Length/1MB,1)
-  Ok "downloaded $mb MB"
 
-  Step 2 'Extracting'
+Step 1 'Getting the latest wizard'
+New-Item -ItemType Directory -Force -Path $Home_ | Out-Null
+$zip = Join-Path $Home_ 'OneGrid-Wizard.zip'
+$downloaded = $false
+try {
+  Info "downloading from $ZipUrl"
+  $ProgressPreference = 'SilentlyContinue'
+  Invoke-WebRequest -UseBasicParsing -Uri $ZipUrl -OutFile $zip
+  $downloaded = $true
+  Ok ("downloaded {0} MB" -f [math]::Round((Get-Item $zip).Length/1MB,1))
+} catch {
+  if (Test-Complete $extractRoot) { Info "could not download ($($_.Exception.Message)); using the complete copy already on disk" }
+  else { Die "could not download the wizard ($($_.Exception.Message)) and no complete copy is on disk. Check your connection and try again." }
+}
+
+if ($downloaded) {
+  Step 2 'Extracting (clean)'
+  # Always wipe any previous extraction so a partial or stale copy can never be reused.
   if (Test-Path $extractRoot) { Remove-Item $extractRoot -Recurse -Force -ErrorAction SilentlyContinue }
+  if (Test-Path $extractRoot) {
+    # leftovers are locked (e.g. a running wizard) - extract into a fresh versioned folder instead
+    $Home_ = Join-Path $Home_ ("v" + (Get-Date -Format 'yyyyMMddHHmmss'))
+    New-Item -ItemType Directory -Force -Path $Home_ | Out-Null
+    $extractRoot = Join-Path $Home_ 'OneGrid-Wizard'
+    Info "previous copy was locked; installing a fresh copy in $Home_"
+  }
   Expand-Archive -Path $zip -DestinationPath $Home_ -Force
   Remove-Item $zip -Force -ErrorAction SilentlyContinue
-  if (-not (Test-Path $server)) {
-    # some archives may extract without the top OneGrid-Wizard folder; find server.js
+  if (-not (Test-Path (Join-Path $extractRoot 'deploy-ui\server.js'))) {
     $found = Get-ChildItem $Home_ -Recurse -Filter server.js -ErrorAction SilentlyContinue |
              Where-Object { $_.FullName -match '\\deploy-ui\\server\.js$' } | Select-Object -First 1
-    if ($found) { $extractRoot = Split-Path (Split-Path $found.FullName -Parent) -Parent; $server = $found.FullName; $innerBoot = Join-Path $extractRoot 'deploy-ui\bootstrap.ps1' }
+    if ($found) { $extractRoot = Split-Path (Split-Path $found.FullName -Parent) -Parent }
   }
-  if (-not (Test-Path $server)) { Die "extraction did not produce deploy-ui\server.js under $Home_." }
+  if (-not (Test-Complete $extractRoot)) { Die "extraction was incomplete under $extractRoot (missing deploy.ps1 or fabric\notebooks). Delete $Home_ and run this again." }
   Ok "extracted to $extractRoot"
 }
+
+$server    = Join-Path $extractRoot 'deploy-ui\server.js'
+$innerBoot = Join-Path $extractRoot 'deploy-ui\bootstrap.ps1'
 
 Step 3 'Starting the wizard'
 if (-not (Test-Path $innerBoot)) { Die "launcher not found: $innerBoot" }
