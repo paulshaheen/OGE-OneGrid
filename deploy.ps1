@@ -81,6 +81,9 @@ $script:TelemetryOn = $false
 $script:TelemetryConnStrEff = $null
 $script:TelemetryCtx = @{}
 function Send-Telemetry($eventName, $props, $measurements) {
+  # Telemetry disabled — nothing is sent to Microsoft. Kept as a no-op so call sites stay valid.
+  return
+  <#
   try {
     if (-not $script:TelemetryOn -or -not $script:TelemetryConnStrEff) { return }
     $cs   = $script:TelemetryConnStrEff
@@ -102,6 +105,7 @@ function Send-Telemetry($eventName, $props, $measurements) {
     $body = $envelope | ConvertTo-Json -Depth 8 -Compress
     Invoke-RestMethod -Uri ($endp.TrimEnd('/') + '/v2/track') -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 8 | Out-Null
   } catch {}
+  #>
 }
 
 function FGet($path){ Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/$path" -Headers @{ Authorization="Bearer $(FTok)" } }
@@ -205,13 +209,17 @@ az account show 1>$null 2>$null; if ($LASTEXITCODE -ne 0) { throw "Run 'az login
 if (-not $cfg.subscriptionId) { $cfg.subscriptionId = az account show --query id -o tsv }
 az account set --subscription $cfg.subscriptionId 1>$null
 
-# ---- resolve install telemetry (default on; opt out via wizard checkbox, config, or env) ----
+# ---- install telemetry DISABLED — no data is sent to Microsoft (opt-in removed from the wizard) ----
+$script:TelemetryConnStrEff = $null
+$script:TelemetryOn = $false
+<#
 $script:TelemetryConnStrEff = if ($env:ONEGRID_TELEMETRY_CONNSTR) { $env:ONEGRID_TELEMETRY_CONNSTR } elseif ($cfg.telemetry -and $cfg.telemetry.connectionString) { $cfg.telemetry.connectionString } else { $TelemetryConnStr }
 $script:TelemetryOn = $true
 if ($Teardown) { $script:TelemetryOn = $false }
 if ($env:ONEGRID_TELEMETRY -eq '0') { $script:TelemetryOn = $false }
 if ($cfg.telemetry -and $cfg.telemetry.enabled -eq $false) { $script:TelemetryOn = $false }
 if (-not $script:TelemetryConnStrEff) { $script:TelemetryOn = $false }
+#>
 $telAcct = try { az account show -o json 2>$null | ConvertFrom-Json } catch { $null }
 $script:TelemetryCtx = @{
   tenantId       = $telAcct.tenantId
@@ -224,8 +232,8 @@ $script:TelemetryCtx = @{
 }
 $script:deployStart = Get-Date
 if ($script:TelemetryOn) { Log "  telemetry ON: reporting an install event to Microsoft OGE (opt out in the wizard, or ONEGRID_TELEMETRY=0)" "DarkGray" }
-else { Log "  telemetry OFF (opted out)" "DarkGray" }
-Send-Telemetry "OneGridDeployStart" @{ outcome = "started"; only = ($Only -join ',') } @{}
+else { Log "  telemetry OFF (no install data is sent to Microsoft)" "DarkGray" }
+# Send-Telemetry "OneGridDeployStart" @{ outcome = "started"; only = ($Only -join ',') } @{}
 
 $state = @{}   # collects created IDs across phases
 $script:phaseErrors = @()   # non-fatal phase issues, summarized at the end
@@ -1127,9 +1135,10 @@ Log "Workspace:  https://app.fabric.microsoft.com/groups/$($state.WorkspaceId)" 
 [IO.File]::WriteAllText((Join-Path $Here "last-deploy-state.json"), ($state | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
 Log "State written to last-deploy-state.json" "Green"
 $durSec = [int]((Get-Date) - $script:deployStart).TotalSeconds
-Send-Telemetry "OneGridDeployComplete" @{
-  outcome   = $(if ($script:phaseErrors.Count -eq 0) { "success" } else { "issues" })
-  chatAgent = [bool]$state.AppUrl
-  region    = $state.ChatAgentLocation
-} @{ durationSec = $durSec; issueCount = $script:phaseErrors.Count }
+# Telemetry disabled — completion event not sent to Microsoft.
+# Send-Telemetry "OneGridDeployComplete" @{
+#   outcome   = $(if ($script:phaseErrors.Count -eq 0) { "success" } else { "issues" })
+#   chatAgent = [bool]$state.AppUrl
+#   region    = $state.ChatAgentLocation
+# } @{ durationSec = $durSec; issueCount = $script:phaseErrors.Count }
 if ($script:phaseErrors.Count -gt 0) { exit 1 }

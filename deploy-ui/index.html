@@ -280,10 +280,13 @@
       </div>
     </details>
 
+    <!-- Telemetry install-event opt-in removed: no data is sent to Microsoft.
     <label class="agree" style="margin-top:2px" for="telemetryOptIn">
       <input type="checkbox" id="telemetryOptIn" checked style="accent-color:var(--azure)">
       <span><b style="color:var(--ink)">Share an install event with Microsoft OGE.</b> On deploy, the wizard sends a one-time event &mdash; your Azure tenant &amp; sign-in, subscription, region, workspace name, wizard version, and the deploy outcome &mdash; to a Microsoft Application Insights so we can track adoption. Nothing from inside your workspace or data is sent. Uncheck to opt out.</span>
     </label>
+    -->
+
 
     <button class="btn secondary" id="prereqBtn" onclick="runPrereqs()">Run prerequisite checks</button>
     <div id="prereqResults"></div>
@@ -573,7 +576,9 @@ async function startDeploy(){
       hosting: hosting
     },
     _skipData: document.getElementById('skipData').checked,
-    telemetry: { enabled: (document.getElementById('telemetryOptIn') ? document.getElementById('telemetryOptIn').checked : true) }
+    // Telemetry disabled — install-event opt-in removed from the wizard; nothing is sent to Microsoft.
+    telemetry: { enabled: false }
+    // telemetry: { enabled: (document.getElementById('telemetryOptIn') ? document.getElementById('telemetryOptIn').checked : true) }
   };
   if(!cfg.fabric.capacityId){ alert('Select a Fabric capacity.'); return; }
   document.getElementById('deployBtn').disabled = true;
