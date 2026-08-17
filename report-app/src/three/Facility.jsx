@@ -16,8 +16,8 @@ class SafeBoundary extends Component {
   componentDidCatch() {}
   render() { return this.state.failed ? (this.props.fallback ?? null) : this.props.children; }
 }
-function SafeEnvironment({ preset, files, background = false, blur = 0, intensity = 1 }) {
-  return <SafeBoundary fallback={null}><Suspense fallback={null}><Environment preset={preset} files={files} background={background} backgroundBlurriness={blur} environmentIntensity={intensity} /></Suspense></SafeBoundary>;
+function SafeEnvironment({ preset, intensity = 1 }) {
+  return <SafeBoundary fallback={null}><Suspense fallback={null}><Environment preset={preset} environmentIntensity={intensity} /></Suspense></SafeBoundary>;
 }
 
 // ── Geographic placement of each plant on the US map (lon/lat) ──────────────
@@ -366,7 +366,7 @@ function SceneInterior({ plant, theme, selected, onSelect, values }) {
       <hemisphereLight intensity={0.6} color={'#eaf1ff'} groundColor="#2b3524" />
       <directionalLight position={[24, 40, 18]} intensity={2.2} color={'#fff4e6'} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-70} shadow-camera-right={70} shadow-camera-top={70} shadow-camera-bottom={-70} shadow-bias={-0.0002} />
       <directionalLight position={[-20, 14, -10]} intensity={0.7} color={'#9db8ff'} />
-      <SafeEnvironment files="/hdri/spruit_sunrise_1k.hdr" background blur={0.06} intensity={1.1} />
+      <SafeEnvironment preset="sunset" intensity={1.1} />
       {/* terrain: grassy ground so the plant sits on land, not a neon grid */}
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]} receiveShadow><planeGeometry args={[600, 600]} /><meshStandardMaterial color="#33402a" metalness={0.05} roughness={1} /></mesh>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.01, 0]} receiveShadow><circleGeometry args={[120, 48]} /><meshStandardMaterial color="#3a4630" metalness={0.05} roughness={1} /></mesh>
