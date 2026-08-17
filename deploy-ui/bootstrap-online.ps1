@@ -43,7 +43,9 @@ $innerBoot   = Join-Path $extractRoot 'deploy-ui\bootstrap.ps1'
 function Test-Complete($root){
   (Test-Path (Join-Path $root 'deploy-ui\server.js')) -and
   (Test-Path (Join-Path $root 'deploy.ps1')) -and
-  (Test-Path (Join-Path $root 'fabric\notebooks'))
+  (Test-Path (Join-Path $root 'fabric\notebooks')) -and
+  (Test-Path (Join-Path $root 'fabric\semanticmodel')) -and
+  (Test-Path (Join-Path $root 'fabric\digitaltwinbuilder'))
 }
 
 Step 1 'Getting the latest wizard'
