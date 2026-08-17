@@ -118,6 +118,38 @@
   .picker{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px}
   .rgchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .rgchip{font-size:11px;padding:3px 9px;border-radius:12px;background:rgba(248,81,73,.12);color:var(--red);border:1px solid rgba(248,81,73,.4)}
+  /* ===== teardown confirmation modal ===== */
+  .modal-overlay{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(3,5,10,.72);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+  .modal-overlay.show{display:flex;animation:ovIn .18s ease}
+  @keyframes ovIn{from{opacity:0}to{opacity:1}}
+  .modal{width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:16px;background:var(--graphite);border:1px solid var(--hair);box-shadow:0 30px 80px -20px rgba(0,0,0,.7);animation:mdIn .2s ease}
+  @keyframes mdIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+  .modal-head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--hair-soft)}
+  .modal-head .warn-ico{width:34px;height:34px;flex:none;border-radius:9px;display:grid;place-items:center;background:rgba(255,90,95,.12);color:var(--critical);border:1px solid rgba(255,90,95,.35)}
+  .modal-head h3{font-family:var(--sans);font-size:16px;color:var(--ink);letter-spacing:-.01em}
+  .modal-head .mh-sub{font-size:12px;color:var(--dim);margin-top:2px}
+  .modal-body{padding:18px 22px;display:flex;flex-direction:column;gap:14px}
+  .del-list{border:1px solid var(--hair-soft);border-radius:12px;overflow:hidden}
+  .del-list .dl-cap{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:12px 14px 4px}
+  .del-row{display:flex;align-items:flex-start;gap:10px;padding:6px 14px 10px}
+  .del-row .dr-ico{color:var(--critical);flex:none;margin-top:2px}
+  .del-row .dr-main{font-size:13px;color:var(--ink);word-break:break-all;font-weight:600}
+  .del-row .dr-sub{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px;word-break:break-all}
+  .del-rgs{display:flex;flex-wrap:wrap;gap:6px;padding:2px 14px 14px}
+  .del-rg{font-family:var(--mono);font-size:11px;padding:4px 9px;border-radius:8px;background:rgba(255,90,95,.10);color:#ff9296;border:1px solid rgba(255,90,95,.32)}
+  .keep-note{font-size:12.5px;color:var(--ok);display:flex;align-items:center;gap:8px}
+  .keep-note b{color:var(--ink)}
+  .risk{border-left:2px solid var(--caution);background:rgba(240,180,41,.06);padding:12px 14px;border-radius:0 10px 10px 0;font-size:12.5px;color:var(--body);line-height:1.5}
+  .risk b{color:var(--ink)}
+  .agree{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border:1px solid var(--hair);border-radius:10px;cursor:pointer;user-select:none;transition:border-color .15s ease,background .15s ease}
+  .agree:hover{border-color:rgba(120,160,255,.3);background:rgba(255,255,255,.02)}
+  .agree input{width:18px;height:18px;flex:none;margin-top:1px;accent-color:var(--critical);cursor:pointer}
+  .agree span{font-size:12.5px;color:var(--body);line-height:1.45}
+  .modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:16px 22px;border-top:1px solid var(--hair-soft)}
+  .btn-danger{background:var(--critical);color:#fff;border:1px solid transparent;border-radius:8px;padding:11px 20px;font-size:14px;font-weight:600;font-family:var(--uifont);cursor:pointer;transition:background .14s ease,box-shadow .26s ease,transform .14s ease}
+  .btn-danger:hover:not(:disabled){background:#ff7478;box-shadow:0 10px 30px -12px rgba(255,90,95,.5)}
+  .btn-danger:active:not(:disabled){transform:translateY(1px)}
+  .btn-danger:disabled{opacity:.45;cursor:not-allowed}
   /* ===== live deploy console ===== */
   .console{position:relative;border-radius:12px;padding:2px;margin-top:4px;
     background:linear-gradient(120deg,#0a1020,#0b2350,#111827,#0b2350,#0a1a2e);background-size:300% 300%;
@@ -324,6 +356,55 @@
           <button class="btn secondary" onclick="document.getElementById('teardownPicker').classList.add('hidden')">Cancel</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== teardown confirmation modal ===== -->
+<div class="modal-overlay" id="teardownModal" role="dialog" aria-modal="true" aria-labelledby="tdmTitle" onclick="if(event.target===this)closeTeardownModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="warn-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </span>
+      <div>
+        <h3 id="tdmTitle">Permanently delete this deployment?</h3>
+        <div class="mh-sub">This cannot be undone. Review every item below before continuing.</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="del-list">
+        <div class="dl-cap">The following will be permanently deleted</div>
+        <div class="del-row">
+          <span class="dr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></span>
+          <div>
+            <div class="dr-main" id="tdmWsName">workspace</div>
+            <div class="dr-sub">Fabric workspace &middot; <span id="tdmWsId">id</span></div>
+          </div>
+        </div>
+        <div class="dl-cap" id="tdmRgCap">Azure resource groups &mdash; and every resource inside them</div>
+        <div class="del-rgs" id="tdmRgs"></div>
+      </div>
+      <div class="keep-note">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5.5c0 4.2 2.9 8.1 7 9.5 4.1-1.4 7-5.3 7-9.5V6l-7-3Z"/><path d="m9.2 12.2 2 2 3.6-3.9"/></svg>
+        <span>Your Fabric <b>capacity</b> is <b>not</b> deleted &mdash; only the workspace and resource groups above.</span>
+      </div>
+      <div class="risk">
+        <b>Proceed at your own risk.</b> Deleting a resource group removes <b>everything</b> it contains &mdash;
+        including any resources you or others may have added to it. This wizard <b>cannot verify</b> that these
+        resources belong only to this deployment, so it is on you to confirm the workspace and resource groups
+        above are exactly what you intend to remove. You accept <b>full responsibility</b> for this action; the
+        OneGrid wizard and its authors accept <b>no liability</b> for any data or resources deleted here.
+      </div>
+      <label class="agree" for="tdmAgree">
+        <input type="checkbox" id="tdmAgree" onchange="document.getElementById('tdmDelete').disabled=!this.checked">
+        <span>I have reviewed the workspace and resource groups listed above, understand this permanently
+          deletes them and everything inside them, and I accept full responsibility for proceeding.</span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" onclick="closeTeardownModal()">Cancel</button>
+      <button class="btn-danger" id="tdmDelete" disabled onclick="executeTeardown()">Delete permanently</button>
     </div>
   </div>
 </div>
@@ -721,12 +802,37 @@ async function showTeardownPicker(){
     : '<span class="hint" style="margin:0">none detected</span>';
 }
 
-async function confirmTeardown(){
+let TEARDOWN_WS_ID='', TEARDOWN_WS_NAME='';
+function confirmTeardown(){
   const wsSel = document.getElementById('teardownWs');
   const wsId = wsSel.value;
-  const wsName = wsSel.selectedOptions[0] ? wsSel.selectedOptions[0].textContent : wsId;
   if(!wsId){ alert('Select a deployment to tear down.'); return; }
-  if(!confirm(`Tear down "${wsName}"?\n\nThis deletes that Fabric workspace and these resource groups:\n${TEARDOWN_RGS.join(', ')||'(none)'}\n\nYour Fabric CAPACITY is NOT deleted.`)) return;
+  const rawName = wsSel.selectedOptions[0] ? wsSel.selectedOptions[0].textContent.trim() : wsId;
+  const wsName = rawName.replace(/\s*\([^)]*\)\s*$/,'') || rawName;
+  TEARDOWN_WS_ID = wsId; TEARDOWN_WS_NAME = wsName;
+  document.getElementById('tdmWsName').textContent = wsName;
+  document.getElementById('tdmWsId').textContent = wsId;
+  const cap = document.getElementById('tdmRgCap');
+  const rgWrap = document.getElementById('tdmRgs');
+  if(TEARDOWN_RGS.length){
+    cap.textContent = 'Azure resource groups \u2014 and every resource inside them';
+    rgWrap.innerHTML = TEARDOWN_RGS.map(r=>`<span class="del-rg">${escapeHtml(r)}</span>`).join('');
+  } else {
+    cap.textContent = 'No Azure resource groups were detected for this deployment';
+    rgWrap.innerHTML = '';
+  }
+  const agree = document.getElementById('tdmAgree'); agree.checked = false;
+  document.getElementById('tdmDelete').disabled = true;
+  document.getElementById('teardownModal').classList.add('show');
+}
+function closeTeardownModal(){ document.getElementById('teardownModal').classList.remove('show'); }
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ const m = document.getElementById('teardownModal'); if(m && m.classList.contains('show')) closeTeardownModal(); }
+});
+async function executeTeardown(){
+  closeTeardownModal();
+  const wsId = TEARDOWN_WS_ID;
+  if(!wsId) return;
   document.getElementById('teardownPicker').classList.add('hidden');
   document.getElementById('postActions').classList.add('hidden');
   document.getElementById('launchPanel').classList.add('hidden');
