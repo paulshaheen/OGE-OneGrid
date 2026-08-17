@@ -150,6 +150,14 @@
   .btn-danger:hover:not(:disabled){background:#ff7478;box-shadow:0 10px 30px -12px rgba(255,90,95,.5)}
   .btn-danger:active:not(:disabled){transform:translateY(1px)}
   .btn-danger:disabled{opacity:.45;cursor:not-allowed}
+  /* teardown resource-group picker checkboxes */
+  .rg-check{display:flex;align-items:center;gap:9px;padding:8px 10px;margin-top:6px;border:1px solid var(--hair-soft);border-radius:8px;cursor:pointer;user-select:none;font-size:12.5px}
+  .rg-check:hover{border-color:rgba(120,160,255,.28);background:rgba(255,255,255,.02)}
+  .rg-check input{width:16px;height:16px;flex:none;accent-color:var(--critical);cursor:pointer}
+  .rg-check .rg-name{font-family:var(--mono);color:var(--ink);word-break:break-all}
+  .rg-badge{margin-left:auto;flex:none;font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .rg-badge.ok{color:var(--ok);background:rgba(63,208,138,.08);border:1px solid rgba(63,208,138,.3)}
+  .rg-badge.warn{color:var(--caution);background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.32)}
   /* ===== live deploy console ===== */
   .console{position:relative;border-radius:12px;padding:2px;margin-top:4px;
     background:linear-gradient(120deg,#0a1020,#0b2350,#111827,#0b2350,#0a1a2e);background-size:300% 300%;
@@ -353,11 +361,11 @@
       <!-- teardown deployment picker -->
       <div id="teardownPicker" class="picker hidden">
         <label style="margin-top:0">Which deployment (Fabric workspace) do you want to tear down?</label>
-        <select id="teardownWs"></select>
-        <div class="hint" id="teardownRgHint">These resource groups will also be deleted:</div>
-        <div class="rgchips" id="teardownRgs"></div>
+        <select id="teardownWs" onchange="loadTeardownPlan()"></select>
+        <div class="hint" id="teardownRgHint" style="margin-top:12px">Resource groups to delete with it (only the ones created by this deployment are pre-selected):</div>
+        <div id="teardownRgList"></div>
         <div style="margin-top:12px">
-          <button class="btn" id="teardownConfirm" style="background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)" onclick="confirmTeardown()">Delete this deployment</button>
+          <button class="btn" id="teardownConfirm" style="background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)" onclick="confirmTeardown()">Review &amp; delete&hellip;</button>
           <button class="btn secondary" onclick="document.getElementById('teardownPicker').classList.add('hidden')">Cancel</button>
         </div>
       </div>
@@ -796,16 +804,35 @@ async function showTeardownPicker(){
   picker.classList.remove('hidden');
   const wsSel = document.getElementById('teardownWs');
   wsSel.innerHTML = '<option>Loading deployments…</option>';
+  document.getElementById('teardownRgList').innerHTML = '';
   let d = {}; try { d = await fetch('/api/deployments').then(r=>r.json()); } catch(e){ wsSel.innerHTML='<option value="">(failed to list)</option>'; return; }
   const wss = d.workspaces||[];
-  if(!wss.length){ wsSel.innerHTML='<option value="">No Fabric workspaces found</option>'; }
-  else {
-    wsSel.innerHTML = wss.map(w=>`<option value="${w.id}" ${w.name===d.defaultWorkspaceName?'selected':''}>${w.name}  (${w.id.slice(0,8)}…)</option>`).join('');
-  }
-  TEARDOWN_RGS = d.resourceGroups||[];
-  document.getElementById('teardownRgs').innerHTML = TEARDOWN_RGS.length
-    ? TEARDOWN_RGS.map(r=>`<span class="rgchip">${r}</span>`).join('')
-    : '<span class="hint" style="margin:0">none detected</span>';
+  if(!wss.length){ wsSel.innerHTML='<option value="">No Fabric workspaces found</option>'; document.getElementById('teardownRgList').innerHTML=''; return; }
+  wsSel.innerHTML = wss.map(w=>`<option value="${w.id}" data-name="${escapeHtml(w.name)}" ${w.name===d.defaultWorkspaceName?'selected':''}>${escapeHtml(w.name)}  (${w.id.slice(0,8)}…)</option>`).join('');
+  loadTeardownPlan();
+}
+
+// Resolve the resource groups that belong to the SELECTED workspace. Tag-matched groups
+// (created by this deployment) are pre-checked; name-matched groups are shown unchecked and
+// flagged so nothing unrelated is ever deleted by accident.
+async function loadTeardownPlan(){
+  const wsSel = document.getElementById('teardownWs');
+  const opt = wsSel.selectedOptions[0];
+  const list = document.getElementById('teardownRgList');
+  if(!opt || !opt.value){ list.innerHTML=''; return; }
+  const wsId = opt.value; const wsName = opt.getAttribute('data-name') || '';
+  list.innerHTML = '<div class="hint" style="margin:0">Finding resource groups for this deployment…</div>';
+  let p = {rgs:[]};
+  try { p = await fetch(`/api/teardown-plan?workspaceId=${encodeURIComponent(wsId)}&name=${encodeURIComponent(wsName)}`).then(r=>r.json()); }
+  catch(e){ list.innerHTML='<div class="hint" style="margin:0">Could not load resource groups — the workspace will still be deleted, no groups selected.</div>'; return; }
+  if(!p.rgs || !p.rgs.length){ list.innerHTML='<div class="hint" style="margin:0">No matching resource groups found — only the Fabric workspace will be deleted.</div>'; return; }
+  const anyName = p.rgs.some(r=>r.match==='name');
+  list.innerHTML = p.rgs.map(r=>{
+    const badge = r.match==='tag'
+      ? '<span class="rg-badge ok">created by this deployment</span>'
+      : '<span class="rg-badge warn">matched by name &mdash; verify</span>';
+    return `<label class="rg-check"><input type="checkbox" class="td-rg" value="${escapeHtml(r.name)}" ${r.selected?'checked':''}><span class="rg-name">${escapeHtml(r.name)}</span>${badge}</label>`;
+  }).join('') + (anyName ? '<div class="hint" style="margin:8px 0 0;color:var(--caution)">Amber groups were matched only by name, not by this deployment&rsquo;s tag &mdash; confirm they belong to this deployment before checking them.</div>' : '');
 }
 
 let TEARDOWN_WS_ID='', TEARDOWN_WS_NAME='';
@@ -816,6 +843,8 @@ function confirmTeardown(){
   const rawName = wsSel.selectedOptions[0] ? wsSel.selectedOptions[0].textContent.trim() : wsId;
   const wsName = rawName.replace(/\s*\([^)]*\)\s*$/,'') || rawName;
   TEARDOWN_WS_ID = wsId; TEARDOWN_WS_NAME = wsName;
+  // Only the resource groups the user has explicitly checked are ever sent for deletion.
+  TEARDOWN_RGS = Array.from(document.querySelectorAll('#teardownRgList .td-rg:checked')).map(c=>c.value);
   document.getElementById('tdmWsName').textContent = wsName;
   document.getElementById('tdmWsId').textContent = wsId;
   const cap = document.getElementById('tdmRgCap');
@@ -824,7 +853,7 @@ function confirmTeardown(){
     cap.textContent = 'Azure resource groups \u2014 and every resource inside them';
     rgWrap.innerHTML = TEARDOWN_RGS.map(r=>`<span class="del-rg">${escapeHtml(r)}</span>`).join('');
   } else {
-    cap.textContent = 'No Azure resource groups were detected for this deployment';
+    cap.textContent = 'No resource groups selected \u2014 only the Fabric workspace above will be deleted';
     rgWrap.innerHTML = '';
   }
   const agree = document.getElementById('tdmAgree'); agree.checked = false;

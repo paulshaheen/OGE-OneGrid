@@ -259,28 +259,53 @@ const server = http.createServer(async (req, res) => {
     const wsRes = await run('az', ['rest', '--method', 'get', '--url', 'https://api.fabric.microsoft.com/v1/workspaces', '--resource', 'https://api.fabric.microsoft.com']);
     let workspaces = [];
     if (wsRes.ok) { try { workspaces = (JSON.parse(wsRes.stdout).value || []).map(w => ({ id: w.id, name: w.displayName })); } catch {} }
-    // Resource groups that look like this solution's (from config + common patterns).
-    let cfgRgs = [];
-    try { const c = readJsonLoose(CONFIG_PATH); cfgRgs = [c.foundry && c.foundry.resourceGroup, c.chatAgent && c.chatAgent.resourceGroup].filter(Boolean); } catch {}
-    const rgRes = await az('group list --query "[].name" -o json');
-    let allRgs = []; if (rgRes.ok) { try { allRgs = JSON.parse(rgRes.stdout); } catch {} }
-    const rgs = [...new Set([...cfgRgs, ...allRgs.filter(n => /onegrid|pm-solution|pm-chatagent|pm-sol/i.test(n))])];
-    // Default workspace name from config to preselect.
     let defaultWs = ''; try { defaultWs = (readJsonLoose(CONFIG_PATH).fabric || {}).workspaceName || ''; } catch {}
-    return send(res, 200, { workspaces, resourceGroups: rgs, defaultWorkspaceName: defaultWs });
+    return send(res, 200, { workspaces, defaultWorkspaceName: defaultWs });
+  }
+
+  // ---- resource groups scoped to a SELECTED workspace (safe teardown targeting) ----
+  // Definitive matches come from the 'onegrid-workspace=<id>' tag the deploy stamps on every
+  // resource group it creates. Anything found only by name is returned UNSELECTED and flagged,
+  // so a broad name match can never silently delete an unrelated group. Shared/protected groups
+  // (telemetry, Log Analytics, network watcher, cloud shell) are always excluded.
+  if (req.method === 'GET' && p === '/api/teardown-plan') {
+    const wsId = (url.searchParams.get('workspaceId') || '').trim();
+    const wsName = (url.searchParams.get('name') || '').trim();
+    const PROTECT = /(^|[-_])telemetry([-_]|$)|[-_]law$|log-?analytics|networkwatcher|^cloud-shell|^defaultresourcegroup|dashboards$/i;
+    let tagged = [];
+    if (wsId) {
+      const r = await az(`group list --tag onegrid-workspace=${wsId} --query "[].name" -o json`);
+      if (r.ok) { try { tagged = JSON.parse(r.stdout) || []; } catch {} }
+    }
+    tagged = tagged.filter(n => !PROTECT.test(n));
+    let all = [];
+    const ar = await az('group list --query "[].name" -o json');
+    if (ar.ok) { try { all = JSON.parse(ar.stdout) || []; } catch {} }
+    const stop = new Set(['onegrid','oge','fabric','demo','test','e2e','prod','dev','poc','solution','app','grid','main','deploy','azure','rgpoc']);
+    const tokens = (wsName.toLowerCase().match(/[a-z0-9]+/g) || []).filter(t => t.length >= 5 && !stop.has(t));
+    const named = all.filter(n => !PROTECT.test(n) && !tagged.includes(n) && tokens.some(t => n.toLowerCase().includes(t)));
+    const rgs = [
+      ...tagged.map(n => ({ name: n, match: 'tag', selected: true })),
+      ...named.map(n => ({ name: n, match: 'name', selected: false }))
+    ];
+    return send(res, 200, { rgs, hasTagged: tagged.length > 0, tokens });
   }
 
   // ---- tear down a SELECTED deployment (Fabric workspace + chosen resource groups) ----
   if (req.method === 'POST' && p === '/api/teardown') {
     if (deployChild) return send(res, 409, { error: 'A process is already running - cancel it first.' });
-    if (!fs.existsSync(CONFIG_PATH)) return send(res, 400, { error: 'no config.json found - nothing to tear down' });
     let body = '';
     req.on('data', c => body += c);
     req.on('end', () => {
       let sel = {}; try { sel = body ? JSON.parse(body) : {}; } catch {}
+      const haveConfig = fs.existsSync(CONFIG_PATH);
+      // The picker supplies the workspace + resource groups explicitly, so a saved
+      // config.json is only needed when nothing was selected.
+      if (!haveConfig && !sel.workspaceId) return send(res, 400, { error: 'Nothing to tear down: no saved config.json and no deployment selected.' });
       logBuffer.length = 0;
       broadcast('=== Starting teardown (removing the selected Fabric workspace + resource groups) ===');
-      const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH, '-Teardown'];
+      const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-Teardown'];
+      if (haveConfig) args.push('-ConfigPath', CONFIG_PATH);
       if (sel.workspaceId) args.push('-TeardownWorkspaceId', sel.workspaceId);
       if (Array.isArray(sel.resourceGroups) && sel.resourceGroups.length) args.push('-TeardownResourceGroups', sel.resourceGroups.join(','));
       deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });

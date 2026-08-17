@@ -192,8 +192,15 @@ function Apply-Folders($ws) {
 }
 
 # ============================ load config =====================================
-if (-not (Test-Path $ConfigPath)) { throw "Config not found: $ConfigPath (copy config.sample.json)" }
-$cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+if (Test-Path $ConfigPath) {
+  $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+}
+elseif ($Teardown) {
+  # Teardown driven by the wizard's picker supplies the workspace + resource groups
+  # explicitly, so a saved config.json isn't required. Use a minimal placeholder.
+  $cfg = [pscustomobject]@{ subscriptionId=''; fabric=[pscustomobject]@{}; foundry=[pscustomobject]@{}; chatAgent=[pscustomobject]@{} }
+}
+else { throw "Config not found: $ConfigPath (copy config.sample.json)" }
 az account show 1>$null 2>$null; if ($LASTEXITCODE -ne 0) { throw "Run 'az login' first." }
 if (-not $cfg.subscriptionId) { $cfg.subscriptionId = az account show --query id -o tsv }
 az account set --subscription $cfg.subscriptionId 1>$null
@@ -201,6 +208,7 @@ az account set --subscription $cfg.subscriptionId 1>$null
 # ---- resolve install telemetry (default on; opt out via wizard checkbox, config, or env) ----
 $script:TelemetryConnStrEff = if ($env:ONEGRID_TELEMETRY_CONNSTR) { $env:ONEGRID_TELEMETRY_CONNSTR } elseif ($cfg.telemetry -and $cfg.telemetry.connectionString) { $cfg.telemetry.connectionString } else { $TelemetryConnStr }
 $script:TelemetryOn = $true
+if ($Teardown) { $script:TelemetryOn = $false }
 if ($env:ONEGRID_TELEMETRY -eq '0') { $script:TelemetryOn = $false }
 if ($cfg.telemetry -and $cfg.telemetry.enabled -eq $false) { $script:TelemetryOn = $false }
 if (-not $script:TelemetryConnStrEff) { $script:TelemetryOn = $false }
@@ -722,7 +730,7 @@ function New-FoundryAccount($name, $rg) {
 function Phase-Foundry {
   Log "PHASE foundry: account + model deployments"
   $rg = $cfg.foundry.resourceGroup
-  az group create -n $rg -l $cfg.location -o none
+  az group create -n $rg -l $cfg.location --tags "onegrid-deploy=1" "onegrid-workspace=$($state.WorkspaceId)" -o none
   $acct = $cfg.foundry.accountName
   $exists = AzTry { az cognitiveservices account show -n $acct -g $rg --query name -o tsv }
   if (-not $exists) {
@@ -767,7 +775,7 @@ function Phase-Foundry {
 function Phase-ChatAgent {
   Log "PHASE chatagent: container app"
   $rg = $cfg.chatAgent.resourceGroup
-  az group create -n $rg -l $cfg.location -o none
+  az group create -n $rg -l $cfg.location --tags "onegrid-deploy=1" "onegrid-workspace=$($state.WorkspaceId)" -o none
   if (-not (AzTry { az extension show -n containerapp --query name -o tsv })) { az extension add -n containerapp --only-show-errors 1>$null }
   az provider register -n Microsoft.App --wait 1>$null 2>$null
 
