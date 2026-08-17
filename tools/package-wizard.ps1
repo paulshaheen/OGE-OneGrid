@@ -60,7 +60,26 @@ Set-Content -Path (Join-Path $stageRoot "data\README-data-is-cloud-seeded.txt") 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $zip = Join-Path $OutDir "OneGrid-Wizard.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path $stageRoot -DestinationPath $zip -CompressionLevel Optimal -Force
+
+# Write the zip with FORWARD-SLASH entry names. Windows Compress-Archive emits
+# backslash separators, which macOS/Linux `unzip` treats as literal filename
+# characters - so the tree never rebuilds and the Mac launcher can't find
+# server.js/deploy.ps1. Writing entries by hand guarantees a cross-platform zip.
+Add-Type -AssemblyName System.IO.Compression | Out-Null
+Add-Type -AssemblyName System.IO.Compression.FileSystem | Out-Null
+$fsZip = [System.IO.File]::Open($zip, [System.IO.FileMode]::Create)
+$arch  = New-Object System.IO.Compression.ZipArchive($fsZip, [System.IO.Compression.ZipArchiveMode]::Create)
+$zcount = 0
+$stageParent = Split-Path $stageRoot -Parent
+Get-ChildItem $stageRoot -Recurse -File | ForEach-Object {
+  $rel = $_.FullName.Substring($stageParent.Length).TrimStart('\','/').Replace('\','/')
+  $entry = $arch.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
+  $es = $entry.Open()
+  $in = [System.IO.File]::OpenRead($_.FullName)
+  $in.CopyTo($es); $in.Close(); $es.Close()
+  $zcount++
+}
+$arch.Dispose(); $fsZip.Close()
 Remove-Item $staging -Recurse -Force
 
 $mb = [math]::Round((Get-Item $zip).Length/1MB,1)
