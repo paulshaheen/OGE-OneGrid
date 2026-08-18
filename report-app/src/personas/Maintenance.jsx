@@ -4,7 +4,7 @@ import { useApi } from '../lib/api.js';
 import { fmt, fmtInt, pct, counts, rankAssets, statusOf } from '../lib/format.js';
 import { KpiCard } from '../components/KpiCard.jsx';
 import { AssetModal } from '../components/FleetGrid.jsx';
-import { SectionTitle, Spinner, Pill } from '../components/ui.jsx';
+import { SectionTitle, Spinner, Pill, StatusGlyph } from '../components/ui.jsx';
 
 const prioColor = (p) => (Number(p) <= 1 ? '#ff5470' : Number(p) <= 2 ? '#f5a524' : Number(p) <= 3 ? '#ffcc4d' : '#7bb1ff');
 const FILTERS = [
@@ -50,7 +50,7 @@ export default function Maintenance({ theme }) {
                   <button key={f.key} onClick={() => setFilter(f.key)}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
                     style={active ? { background: `${f.color}22`, color: f.color, border: `1px solid ${f.color}66` } : { color: theme.persona === 'executive' ? '#64748b' : '#8ea3bd' }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: f.color }} />{f.label} {n}
+                    <StatusGlyph status={f.key} size={12} />{f.label} {n}
                   </button>
                 );
               })}
@@ -66,7 +66,7 @@ export default function Maintenance({ theme }) {
                 return (
                   <motion.button key={a.asset_id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} onClick={() => setAsset(a)}
                     className={`w-full text-left p-4 ${theme.card} relative overflow-hidden`}>
-                    <div className="absolute left-0 top-0 h-full w-1" style={{ background: s.color, boxShadow: `0 0 14px ${s.glow}` }} />
+                    <div className="absolute left-0 top-0 h-full w-1" style={{ background: s.color }} />
                     <div className="flex items-start justify-between pl-2">
                       <div>
                         <div className={`font-semibold ${theme.heading}`}>{a.name}</div>

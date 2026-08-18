@@ -5,7 +5,7 @@ import { useFocus } from '../lib/focus.js';
 import { fmt, fmtInt, timeAgo, statusOf, counts } from '../lib/format.js';
 import { Facility, plantGenTags } from '../three/Facility.jsx';
 import { AssetModal } from '../components/FleetGrid.jsx';
-import { Spinner, StatusDot } from '../components/ui.jsx';
+import { Spinner, StatusDot, StatusGlyph } from '../components/ui.jsx';
 
 export default function ControlRoom({ theme }) {
   const { data: model } = useApi('/api/facility-model');
@@ -97,7 +97,7 @@ export default function ControlRoom({ theme }) {
             <>
               <span className={theme.sub}>›</span>
               <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: plantCrit ? '#ff5470' : '#2fd07a' }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: plantCrit ? '#ff5470' : '#2fd07a' }} />{activePlant}
+                <StatusGlyph status={plantCrit ? 'critical' : 'ok'} size={12} />{activePlant}
               </span>
               <button onClick={backToSites} className="ml-1 text-xs px-2 py-0.5 rounded-md" style={{ background: `${theme.accent}18`, color: theme.accent, border: `1px solid ${theme.accent}44` }}>← all sites</button>
             </>
@@ -113,7 +113,7 @@ export default function ControlRoom({ theme }) {
             {alerts.map((a, i) => (
               <div key={i} className={`px-3 py-2 rounded-lg ${theme.panelSolid}`}>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: a.level === 'critical' ? '#ff5470' : '#ffcc4d' }} />
+                  <StatusGlyph status={a.level === 'critical' ? 'critical' : 'watch'} size={12} />
                   <span className={`text-xs font-semibold truncate ${theme.heading}`}>{a.asset}</span>
                   <span className="ml-auto text-[10px] font-bold" style={{ color: a.level === 'critical' ? '#ff5470' : '#ffcc4d' }}>{a.severity}</span>
                 </div>

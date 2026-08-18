@@ -44,7 +44,7 @@ export function FleetGrid({ theme, assets, onOpen }) {
             className={`relative text-left p-4 overflow-hidden ${theme.card}`}
             style={{ borderColor: `${s.color}40` }}
           >
-            <div className="absolute left-0 top-0 h-full w-1" style={{ background: s.color, boxShadow: `0 0 16px ${s.glow}` }} />
+            <div className="absolute left-0 top-0 h-full w-1" style={{ background: s.color }} />
             <div className="flex items-start justify-between gap-2 pl-2">
               <div>
                 <div className={`font-semibold ${theme.heading}`}>{a.name}</div>

@@ -1,8 +1,10 @@
 // Shared formatting + status helpers.
+// Each status carries a distinct SHAPE as well as a color, so meaning survives without
+// color perception (colorblind-safe): healthy = check, watch = triangle, critical = octagon.
 export const STATUS = {
-  ok: { label: 'Healthy', color: '#2fd07a', glow: 'rgba(47,208,122,.5)', ring: 'ring-emerald-400/40' },
-  watch: { label: 'Watch', color: '#ffcc4d', glow: 'rgba(255,204,77,.5)', ring: 'ring-amber-400/40' },
-  critical: { label: 'Critical', color: '#ff5470', glow: 'rgba(255,84,112,.55)', ring: 'ring-rose-400/40' },
+  ok: { label: 'Healthy', color: '#2fd07a', glow: 'rgba(47,208,122,.5)', ring: 'ring-emerald-400/40', shape: 'check' },
+  watch: { label: 'Watch', color: '#ffcc4d', glow: 'rgba(255,204,77,.5)', ring: 'ring-amber-400/40', shape: 'triangle' },
+  critical: { label: 'Critical', color: '#ff5470', glow: 'rgba(255,84,112,.55)', ring: 'ring-rose-400/40', shape: 'octagon' },
 };
 export const statusOf = (s) => STATUS[s] || STATUS.ok;
 

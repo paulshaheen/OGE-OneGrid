@@ -4,7 +4,7 @@ import { fmt, fmtInt, pct, counts, rankAssets, statusOf } from '../lib/format.js
 import { KpiCard } from '../components/KpiCard.jsx';
 import { AssetModal } from '../components/FleetGrid.jsx';
 import { BriefingBar } from '../components/Briefing.jsx';
-import { SectionTitle, Spinner, Pill } from '../components/ui.jsx';
+import { SectionTitle, Spinner, Pill, StatusGlyph } from '../components/ui.jsx';
 import { Sunburst } from '../components/charts.jsx';
 import { OutagesModal, PredictionsModal } from '../components/DetailModals.jsx';
 import { GovernanceBadge } from './Governance.jsx';
@@ -43,8 +43,8 @@ export default function Executive({ theme, onNavigate, onOpenGovernance }) {
               onAsset={(a) => setAsset(a)} />
           )}
           <div className="flex justify-center gap-4 mt-3 text-xs">
-            {[['Healthy', c.ok, '#2fd07a'], ['Watch', c.watch, '#ffcc4d'], ['Critical', c.critical, '#ff5470']].map(([l, n, col]) => (
-              <span key={l} className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: col }} />{l} {n || 0}</span>
+            {[['Healthy', c.ok, 'ok'], ['Watch', c.watch, 'watch'], ['Critical', c.critical, 'critical']].map(([l, n, st]) => (
+              <span key={l} className="inline-flex items-center gap-1.5"><StatusGlyph status={st} size={13} />{l} {n || 0}</span>
             ))}
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function Executive({ theme, onNavigate, onOpenGovernance }) {
               const disp = a.score ?? a.health;
               return (
                 <button key={a.asset_id} onClick={() => setAsset(a)} className={`w-full text-left flex items-center gap-4 p-3 rounded-xl ${theme.panelSolid} hover:opacity-90 transition`}>
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color, boxShadow: `0 0 10px ${s.glow}` }} />
+                  <StatusGlyph status={a.status} size={16} />
                   <div className="flex-1 min-w-0">
                     <div className={`font-semibold ${theme.heading}`}>{a.name}</div>
                     <div className={`text-xs ${theme.sub}`}>{a.plant} - {a.unit} - {a.anom_n || 0} anomalies - peak z {a.max_z != null ? fmt(a.max_z, 0) : '-'}</div>

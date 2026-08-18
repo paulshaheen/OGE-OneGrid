@@ -41,12 +41,45 @@ export function StatusDot({ status, size = 8 }) {
   );
 }
 
+// Colorblind-safe status glyph: a distinct SHAPE per status (check / triangle / octagon-x)
+// so severity is legible without relying on color. Filled shape + white symbol reads in
+// grayscale. Use anywhere a bare status dot would otherwise carry meaning by color alone.
+export function StatusGlyph({ status, size = 14, title }) {
+  const s = statusOf(status);
+  const label = title || s.label;
+  const common = { width: size, height: size, viewBox: '0 0 24 24', role: 'img', 'aria-label': label };
+  if (s.shape === 'check') {
+    return (
+      <svg {...common} fill="none"><title>{label}</title>
+        <circle cx="12" cy="12" r="10" fill={s.color} />
+        <path d="M7.5 12.5l3 3 6-6.5" stroke="#06121f" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    );
+  }
+  if (s.shape === 'triangle') {
+    return (
+      <svg {...common} fill="none"><title>{label}</title>
+        <path d="M12 2.5l10 18H2z" fill={s.color} />
+        <path d="M12 9v5" stroke="#3a2c00" strokeWidth="2.2" strokeLinecap="round" />
+        <circle cx="12" cy="17.4" r="1.25" fill="#3a2c00" />
+      </svg>
+    );
+  }
+  // octagon (critical / stop)
+  return (
+    <svg {...common} fill="none"><title>{label}</title>
+      <path d="M7.6 2.5h8.8L21.5 7.6v8.8L16.4 21.5H7.6L2.5 16.4V7.6z" fill={s.color} />
+      <path d="M8.8 8.8l6.4 6.4M15.2 8.8l-6.4 6.4" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function Pill({ status, children, theme }) {
   const s = statusOf(status);
   return (
     <span className="eyebrow inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
       style={{ background: `${s.color}14`, color: s.color, border: `1px solid ${s.color}3a` }}>
-      <StatusDot status={status} size={7} /> {children || s.label}
+      <StatusGlyph status={status} size={12} /> {children || s.label}
     </span>
   );
 }
