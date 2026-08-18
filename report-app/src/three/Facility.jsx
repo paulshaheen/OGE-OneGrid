@@ -212,7 +212,7 @@ function CameraRig({ mode, focus }) {
   const settling = useRef(true);
   const settleUntil = useRef(0);
   useEffect(() => {
-    if (mode === 'sites') { target.current.set(0, 24, 0); goal.current.set(10, 62, 250); }
+    if (mode === 'sites') { target.current.set(0, 12, 2); goal.current.set(6, 150, 182); }
     else if (focus) { target.current.set(focus[0], 2, focus[2]); goal.current.set(focus[0] + 2, 14, focus[2] + 20); }
     else { target.current.set(0, 2, 0); goal.current.set(0, 22, 44); }
     settling.current = true;
@@ -327,30 +327,117 @@ function buildWorldLines(r, rings) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); return g;
 }
 
+// Named continents by lon/lat box. Because the coastline data joins connected landmasses into
+// single rings (the Americas; Afro-Eurasia), we CLIP coastlines to the box rather than assign
+// whole rings — so South America / Africa / Europe get their real bodies, not just islands.
+const CONTINENTS = [
+  { name: 'North America', lon: [-170, -52], lat: [7, 72] },
+  { name: 'South America', lon: [-82, -34], lat: [-56, 13] },
+  { name: 'Europe', lon: [-12, 45], lat: [35, 72] },
+  { name: 'Africa', lon: [-20, 52], lat: [-36, 38] },
+  { name: 'Asia', lon: [45, 180], lat: [3, 78] },
+  { name: 'Australia', lon: [112, 155], lat: [-45, -9] },
+].map((c) => ({ ...c, center: [(c.lon[0] + c.lon[1]) / 2, (c.lat[0] + c.lat[1]) / 2] }));
+
+// Coastline polylines with all vertices inside a continent's lon/lat box.
+function clipRegion(box) {
+  const [lo0, lo1] = box.lon, [la0, la1] = box.lat;
+  const inb = (lo, la) => lo >= lo0 && lo <= lo1 && la >= la0 && la <= la1;
+  const segs = [];
+  for (const ring of WORLD) {
+    let cur = null;
+    for (const pt of ring) {
+      if (inb(pt[0], pt[1])) { if (!cur) { cur = []; segs.push(cur); } cur.push(pt); }
+      else cur = null;
+    }
+  }
+  return segs.filter((s) => s.length >= 2);
+}
+
 // A dark grid globe with glowing continent coastlines + lat/long graticule + atmosphere rim.
-// The globe spins; the US is highlighted brighter and starts facing the popped-out panel.
-function HoloGlobe({ radius = 52, accent = '#37e0d0', present }) {
-  const spin = useRef();
-  useFrame((_, dt) => { if (spin.current) spin.current.rotation.y += (dt || 0.016) * 0.06; });
+// The globe spins (angle published via spinRef); the US is highlighted brighter and starts
+// facing the popped-out panel.
+function HoloGlobe({ radius = 52, accent = '#37e0d0', present, spinRef, onPick }) {
+  const grp = useRef();
+  useFrame((_, dt) => { const v = (spinRef.current || 0) + (dt || 0.016) * 0.06; spinRef.current = v; if (grp.current) grp.current.rotation.y = v; });
   const grid = useMemo(() => buildGraticule(radius * 0.999), [radius]);
   const world = useMemo(() => buildWorldLines(radius * 1.004, WORLD), [radius]);
   const usSeg = useMemo(() => buildWorldLines(radius * 1.012, NATION), [radius]);
   const baseQuat = useMemo(() => new THREE.Quaternion().setFromUnitVectors(lonLatToVec3(-98, 39, 1).normalize(), present.clone().normalize()), [present]);
-  const anchor = useMemo(() => present.clone().normalize().multiplyScalar(radius * 1.03), [present, radius]);
   return (
     <group>
-      <group ref={spin}>
+      <group ref={grp}>
         <group quaternion={baseQuat.toArray()}>
           <mesh><sphereGeometry args={[radius, 48, 48]} /><meshStandardMaterial color="#05101d" emissive="#0a1e33" emissiveIntensity={0.5} metalness={0.2} roughness={0.9} /></mesh>
           <lineSegments geometry={grid}><lineBasicMaterial color={accent} transparent opacity={0.14} toneMapped={false} /></lineSegments>
           <lineSegments geometry={world}><lineBasicMaterial color="#46d6b6" transparent opacity={0.6} toneMapped={false} /></lineSegments>
           <lineSegments geometry={usSeg}><lineBasicMaterial color={accent} transparent opacity={0.98} toneMapped={false} /></lineSegments>
+          {/* clickable continent hotspots (rotate with the globe) */}
+          {CONTINENTS.map((c) => {
+            const p = lonLatToVec3(c.center[0], c.center[1], radius * 1.03);
+            return (
+              <mesh key={c.name} position={p.toArray()}
+                onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+                onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+                onClick={(e) => { e.stopPropagation(); onPick && onPick(c.name); }}>
+                <sphereGeometry args={[2.4, 16, 16]} />
+                <meshBasicMaterial color="#ffd27a" transparent opacity={0.85} toneMapped={false} />
+              </mesh>
+            );
+          })}
         </group>
       </group>
       {/* atmosphere rim glow */}
       <mesh><sphereGeometry args={[radius * 1.05, 48, 48]} /><meshBasicMaterial color="#2f7fff" transparent opacity={0.12} side={THREE.BackSide} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
-      {/* fixed focus marker where the panel tethers down */}
-      <mesh position={anchor.toArray()}><sphereGeometry args={[0.85, 16, 16]} /><meshBasicMaterial color={accent} toneMapped={false} /></mesh>
+    </group>
+  );
+}
+
+// Tether from a popped-out panel down to a region on the globe. The panel end (top) stays
+// fixed; the globe end tracks the region as the globe rotates (dir = its post-orientation
+// direction on the unit sphere; reads the shared spin angle).
+function Tether({ spinRef, center, radius, dir, top, accent }) {
+  const base = useMemo(() => dir.clone().normalize().multiplyScalar(radius * 1.02), [dir, radius]);
+  const dot = useRef();
+  const geo = useMemo(() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3)); return g; }, []);
+  useFrame(() => {
+    const th = spinRef.current || 0, c = Math.cos(th), s = Math.sin(th);
+    const x = base.x * c + base.z * s, z = -base.x * s + base.z * c;
+    const ax = center[0] + x, ay = center[1] + base.y, az = center[2] + z;
+    const p = geo.attributes.position.array;
+    p[0] = ax; p[1] = ay; p[2] = az; p[3] = top[0]; p[4] = top[1]; p[5] = top[2];
+    geo.attributes.position.needsUpdate = true;
+    if (dot.current) dot.current.position.set(ax, ay, az);
+  });
+  return (
+    <>
+      <line geometry={geo}><lineBasicMaterial color={accent} transparent opacity={0.8} toneMapped={false} /></line>
+      <mesh ref={dot}><sphereGeometry args={[0.9, 16, 16]} /><meshBasicMaterial color={accent} toneMapped={false} /></mesh>
+    </>
+  );
+}
+
+// A popped-out continent: its coastline outline flattened onto a panel, with a "no facilities"
+// banner — the same pop-out treatment as the US, minus the data.
+function ContinentPanel({ continent, position, accent }) {
+  const rings2d = useMemo(() => {
+    const [clon, clat] = continent.center;
+    const cos = Math.cos(clat * Math.PI / 180), K2 = 2.4;
+    const raw = clipRegion(continent).map((r) => r.map(([lo, la]) => [(lo - clon) * K2 * cos, -(la - clat) * K2]));
+    let minx = Infinity, maxx = -Infinity, minz = Infinity, maxz = -Infinity;
+    for (const r of raw) for (const [x, z] of r) { if (x < minx) minx = x; if (x > maxx) maxx = x; if (z < minz) minz = z; if (z > maxz) maxz = z; }
+    const w = (maxx - minx) || 1, d = (maxz - minz) || 1, midx = (minx + maxx) / 2, midz = (minz + maxz) / 2, sc = Math.min(3.0, 74 / Math.max(w, d));
+    return raw.map((r) => r.map(([x, z]) => [(x - midx) * sc, 0.1, (z - midz) * sc]));
+  }, [continent]);
+  return (
+    <group position={position}>
+      {rings2d.map((r, i) => <Line key={i} points={r} color={accent} lineWidth={2} transparent opacity={0.92} />)}
+      <Html position={[0, 6, 0]} center distanceFactor={100} zIndexRange={[30, 0]}>
+        <div className="px-3 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap"
+          style={{ background: 'rgba(8,12,20,.85)', color: accent, border: `1px solid ${accent}66`, boxShadow: `0 0 14px ${accent}44` }}>
+          {continent.name} · <span style={{ opacity: 0.72, fontWeight: 400 }}>no facilities in this region</span>
+        </div>
+      </Html>
     </group>
   );
 }
@@ -415,10 +502,14 @@ function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
   const LIFT = 60, R = 52;
   const GC = [0, -34, -8];
   const present = useMemo(() => new THREE.Vector3(0, 0.95, 0.3), []);
-  const anchorWorld = useMemo(() => {
-    const a = present.clone().normalize().multiplyScalar(R * 1.02);
-    return [GC[0] + a.x, GC[1] + a.y, GC[2] + a.z];
-  }, [present]);
+  const spinRef = useRef(0);
+  const sunColor = useMemo(() => new THREE.Color('#fff3d6').multiplyScalar(5), []); // HDR so bloom glows it
+  const [popped, setPopped] = useState(null);
+  const baseQuat = useMemo(() => new THREE.Quaternion().setFromUnitVectors(lonLatToVec3(-98, 39, 1).normalize(), present.clone().normalize()), [present]);
+  const pc = useMemo(() => CONTINENTS.find((c) => c.name === popped) || null, [popped]);
+  const contDir = useMemo(() => (pc ? lonLatToVec3(pc.center[0], pc.center[1], 1).applyQuaternion(baseQuat).normalize() : null), [pc, baseQuat]);
+  // North America == the original US facilities map; other continents show a bare outline.
+  const showUS = !pc || pc.name === 'North America';
 
   return (
     <>
@@ -426,23 +517,34 @@ function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
       <fog attach="fog" args={['#02040a', 240, 680]} />
       <hemisphereLight intensity={0.05} groundColor={'#0a0f18'} color={'#33405a'} />
       <directionalLight position={[40, 120, 60]} intensity={0.28} color={'#5f79b8'} />
-      <StarField count={1400} />
+      <StarField count={2600} radius={520} full />
+      {/* the sun — a bright HDR core; bloom turns it into a soft glow (no fake halo geometry) */}
+      <mesh position={[150, 25, -185]}><sphereGeometry args={[16, 32, 32]} /><meshBasicMaterial color={sunColor} toneMapped={false} fog={false} /></mesh>
+      <directionalLight position={[150, 120, 90]} intensity={0.9} color={'#fff2d6'} />
 
       {/* rotating hologram Earth */}
       <group position={GC}>
-        <HoloGlobe radius={R} accent={theme.accent} present={present} />
+        <HoloGlobe radius={R} accent={theme.accent} present={present} spinRef={spinRef} onPick={(name) => setPopped((p) => (p === name ? null : name))} />
       </group>
-      {/* tether line: US on the globe → the popped-out panel */}
-      <Line points={[anchorWorld, [0, LIFT - 1, 0]]} color={theme.accent} lineWidth={1.6} transparent opacity={0.7} dashed dashSize={2} gapSize={1.4} />
-
-      {/* the US night-map panel, lifted out of the globe */}
-      <group position={[0, LIFT, 0]}>
-        <primitive object={map.terrain} />
-        <CityLights points={map.cityLights} />
-        <Line points={map.nationLine} color={theme.accent} lineWidth={2.4} transparent opacity={0.95} />
-        {map.stateLines.map((pts, i) => <Line key={i} points={pts} color="#1f6f9c" lineWidth={1.1} transparent opacity={0.5} />)}
-        {sites.map((s) => <MapMarker key={s.name} site={s} theme={theme} hovered={hovered} onHover={onHover} onEnter={onEnter} />)}
-      </group>
+      {/* One map at a time: the US facilities map (default / North America) OR a continent outline */}
+      {showUS && (
+        <>
+          <Tether spinRef={spinRef} center={GC} radius={R} dir={present} top={[0, LIFT - 1, 0]} accent={theme.accent} />
+          <group position={[0, LIFT, 0]}>
+            <primitive object={map.terrain} />
+            <CityLights points={map.cityLights} />
+            <Line points={map.nationLine} color={theme.accent} lineWidth={2.4} transparent opacity={0.95} />
+            {map.stateLines.map((pts, i) => <Line key={i} points={pts} color="#1f6f9c" lineWidth={1.1} transparent opacity={0.5} />)}
+            {sites.map((s) => <MapMarker key={s.name} site={s} theme={theme} hovered={hovered} onHover={onHover} onEnter={onEnter} />)}
+          </group>
+        </>
+      )}
+      {pc && !showUS && contDir && (
+        <>
+          <ContinentPanel continent={pc} position={[0, LIFT, 0]} accent={theme.accent} />
+          <Tether spinRef={spinRef} center={GC} radius={R} dir={contDir} top={[0, LIFT - 1, 0]} accent={theme.accent} />
+        </>
+      )}
 
       <CameraRig mode="sites" />
       <EffectComposer disableNormalPass>
@@ -542,21 +644,21 @@ function UnitStructures({ s }) {
 
 // A points-based star field on a high dome — constant-size white dots, fog-disabled so they
 // stay crisp pinpoints (no fake glowing spheres).
-function StarField({ count = 1600 }) {
+function StarField({ count = 1600, radius = 450, full = false }) {
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     const pos = new Float32Array(count * 3);
+    const cosLo = full ? -1 : -0.12; // full sphere for space, else a horizon-down dome
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(THREE.MathUtils.lerp(-0.12, 1, Math.random())); // zenith down to just below the horizon
-      const r = 450;
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.cos(phi);
-      pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      const phi = Math.acos(THREE.MathUtils.lerp(cosLo, 1, Math.random()));
+      pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = radius * Math.cos(phi);
+      pos[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
     }
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     return g;
-  }, [count]);
+  }, [count, radius, full]);
   return (
     <points geometry={geo}>
       <pointsMaterial color="#e6edff" size={1.5} sizeAttenuation={false} fog={false} transparent opacity={0.9} toneMapped={false} />
