@@ -135,7 +135,8 @@ function InteriorAsset({ node, theme, selected, hovered, onSelect, onHover, valu
     if (!ref.current) return;
     const target = isSel ? 0.62 : hovered === node.id ? 0.58 : baseScale;
     ref.current.scale.setScalar(THREE.MathUtils.lerp(ref.current.scale.x, target, 0.15));
-    ref.current.rotation.y += (delta || 0.016) * 0.55; // continuous turntable (~2x the detail-view sway)
+    if (isSel) ref.current.rotation.y += (delta || 0.016) * 0.55;            // spin only the selected resource
+    else ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, 0, 0.12); // others settle facing front
   });
   return (
     <group position={node.pos}>
