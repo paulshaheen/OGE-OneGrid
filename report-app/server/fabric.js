@@ -70,6 +70,17 @@ function isAuthError(e) {
   return /HTTP 40[13]\b/.test(m) || /TokenExpired|token has expired|Authentication_?Failed|Unauthorized/i.test(m);
 }
 
+// Detect a paused/suspended Fabric capacity. When the capacity backing the workspace is
+// paused (e.g. auto-paused outside operating hours), DAX/KQL queries fail rather than
+// returning data — so the UI can show a clear "capacity paused" banner instead of blanks.
+export function isCapacityPausedError(e) {
+  const m = String((e && e.message) || '').toLowerCase();
+  if (/\bpaused\b|\bsuspended\b|\bsuspend\b/.test(m)) return true;
+  if (/capacity/.test(m) && /(not\s*active|inactive|unavailable|disabled|paused|suspended|is off)/.test(m)) return true;
+  if (/capacitynotactive|powerbicapacity|premiumcapacity|f-?sku/.test(m) && /(paus|suspend|inactiv|unavail|disab)/.test(m)) return true;
+  return false;
+}
+
 // Run `fn(token)` with a cached token; on an auth error, invalidate the cache, acquire a
 // fresh token and retry ONCE. This makes the backend self-heal from token expiry without a
 // manual restart.

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODES, PERSONAS } from './lib/themes.js';
 import { FocusProvider } from './lib/focus.js';
+import { useCapacityStatus } from './lib/api.js';
 import Executive from './personas/Executive.jsx';
 import ControlRoom from './personas/ControlRoom.jsx';
 import Maintenance from './personas/Maintenance.jsx';
@@ -11,10 +12,39 @@ import { Tour, TOUR_STEPS } from './components/Tour.jsx';
 
 const PAGES = { executive: Executive, controlroom: ControlRoom, maintenance: Maintenance, ontology: Ontology };
 
+// Full-width strip shown when the Fabric capacity backing the data is paused (e.g. auto-paused
+// outside normal operating hours). Explains why values are blank; auto-hides when it resumes.
+function CapacityPausedBanner({ status }) {
+  return (
+    <AnimatePresence>
+      {status && status.capacityPaused && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.25 }} role="status" aria-live="polite"
+          className="relative z-10 overflow-hidden"
+          style={{ background: 'linear-gradient(90deg, rgba(245,158,11,.16), rgba(245,158,11,.08))', borderBottom: '1px solid rgba(245,158,11,.45)' }}>
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-2.5">
+            <span className="grid place-items-center w-6 h-6 rounded-full shrink-0" style={{ background: 'rgba(245,158,11,.25)', color: '#f59e0b' }}>
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+            </span>
+            <div className="leading-tight min-w-0">
+              <div className="text-sm font-semibold" style={{ color: '#fbbf24' }}>Fabric capacity paused — live data is unavailable</div>
+              <div className="text-[12px] opacity-80" style={{ color: '#fde68a' }}>
+                {status.message || 'The capacity is paused outside normal operating hours. Readings will refresh automatically when it restarts.'}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function App() {
   const [personaId, setPersonaId] = useState('executive');
   const [mode, setMode] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('pm.theme.mode')) || 'dark');
   const [tourOpen, setTourOpen] = useState(false);
+  const capacityStatus = useCapacityStatus();
   const theme = MODES[mode] || MODES.light;
   const Persona = PAGES[personaId];
   const toggleMode = () => { const m = mode === 'light' ? 'dark' : 'light'; setMode(m); try { localStorage.setItem('pm.theme.mode', m); } catch { /* ignore */ } };
@@ -76,6 +106,8 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      <CapacityPausedBanner status={capacityStatus} />
 
       <main className="relative flex-1 min-h-0">
         <AnimatePresence mode="wait">

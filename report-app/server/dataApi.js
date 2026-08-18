@@ -3,7 +3,7 @@
 //  Each function returns plain JSON the report front-ends consume. A tiny TTL
 //  cache keeps the demo snappy without hammering the capacity.
 // ---------------------------------------------------------------------------
-import { dax, dax1, kql, kqlMgmt } from './fabric.js';
+import { dax, dax1, kql, kqlMgmt, isCapacityPausedError } from './fabric.js';
 import { resolveTarget } from './target.js';
 
 const cache = new Map();
@@ -18,6 +18,42 @@ async function cached(key, ttlMs, fn) {
 
 const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
 const T = () => resolveTarget();
+
+// Reject a slow probe so /api/status stays snappy even if a paused endpoint hangs.
+function withTimeout(promise, ms, label = 'probe timeout') {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error(label)), ms))]);
+}
+// Connection/5xx-style failures that also mean "the capacity isn't serving right now".
+function isLikelyUnavailable(msg) {
+  return /timeout|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|socket hang up|network|HTTP 5\d\d|HTTP 40[03]\b|service unavailable|bad gateway|gateway timeout/i.test(String(msg));
+}
+
+// Liveness probe: is the Fabric capacity actually serving queries right now? Runs a trivial
+// DAX ping (the Power BI endpoint answers fast even when the capacity is paused — it returns
+// an error rather than hanging). Cached briefly so polling clients don't hammer it.
+export async function status() {
+  return cached('status', 15_000, async () => {
+    const t = T();
+    if (!t.workspaceId || !t.datasetId) {
+      return { ok: false, configured: false, capacityPaused: false, message: 'No Fabric target is configured for this app.' };
+    }
+    try {
+      await withTimeout(dax1(t.workspaceId, t.datasetId, 'EVALUATE ROW("ping", 1)'), 12_000);
+      return { ok: true, capacityPaused: false };
+    } catch (e) {
+      const detail = String((e && e.message) || e);
+      const paused = isCapacityPausedError(e) || isLikelyUnavailable(detail);
+      return {
+        ok: false,
+        capacityPaused: paused,
+        message: paused
+          ? 'The Fabric capacity is paused — live data is unavailable outside normal operating hours. Readings resume automatically when the capacity restarts.'
+          : 'Live data is temporarily unavailable.',
+        detail: detail.slice(0, 300),
+      };
+    }
+  });
+}
 
 // ---- helpers to run DAX against the import model -------------------------
 function q(query) { const t = T(); return dax1(t.workspaceId, t.datasetId, query); }
