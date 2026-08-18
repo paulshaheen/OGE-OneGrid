@@ -7,6 +7,7 @@ import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 import { statusOf } from '../lib/format.js';
 import { EquipmentGeometry, equipmentType } from './Equipment.jsx';
 import { NATION, STATES } from './usaGeo.js';
+import { WORLD } from './worldGeo.js';
 
 const worstOf = (units = []) => units.reduce((s, u) => (u.status === 'critical' ? 'critical' : s === 'critical' ? 'critical' : u.status === 'watch' ? 'watch' : s), 'ok');
 
@@ -211,7 +212,7 @@ function CameraRig({ mode, focus }) {
   const settling = useRef(true);
   const settleUntil = useRef(0);
   useEffect(() => {
-    if (mode === 'sites') { target.current.set(0, 0, 2); goal.current.set(6, 95, 150); }
+    if (mode === 'sites') { target.current.set(0, 24, 0); goal.current.set(10, 62, 250); }
     else if (focus) { target.current.set(focus[0], 2, focus[2]); goal.current.set(focus[0] + 2, 14, focus[2] + 20); }
     else { target.current.set(0, 2, 0); goal.current.set(0, 22, 44); }
     settling.current = true;
@@ -298,6 +299,62 @@ function CityLights({ points }) {
   return <primitive ref={ref} object={points} />;
 }
 
+// ── Holographic Earth: the US night-map panel pops out of a rotating grid globe ──
+function lonLatToVec3(lon, lat, r) {
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = (lon + 180) * Math.PI / 180;
+  return new THREE.Vector3(-r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta));
+}
+function buildGraticule(r) {
+  const pts = [];
+  for (let lat = -80; lat <= 80; lat += 20) {
+    let prev = null;
+    for (let lon = -180; lon <= 180; lon += 6) { const v = lonLatToVec3(lon, lat, r); if (prev) pts.push(prev.x, prev.y, prev.z, v.x, v.y, v.z); prev = v; }
+  }
+  for (let lon = -180; lon < 180; lon += 20) {
+    let prev = null;
+    for (let lat = -90; lat <= 90; lat += 6) { const v = lonLatToVec3(lon, lat, r); if (prev) pts.push(prev.x, prev.y, prev.z, v.x, v.y, v.z); prev = v; }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); return g;
+}
+// World coastlines mapped to the sphere as one LineSegments geometry (single draw call).
+function buildWorldLines(r, rings) {
+  const pts = [];
+  for (const ring of rings) {
+    let prev = null;
+    for (const [lon, lat] of ring) { const v = lonLatToVec3(lon, lat, r); if (prev) pts.push(prev.x, prev.y, prev.z, v.x, v.y, v.z); prev = v; }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); return g;
+}
+
+// A dark grid globe with glowing continent coastlines + lat/long graticule + atmosphere rim.
+// The globe spins; the US is highlighted brighter and starts facing the popped-out panel.
+function HoloGlobe({ radius = 52, accent = '#37e0d0', present }) {
+  const spin = useRef();
+  useFrame((_, dt) => { if (spin.current) spin.current.rotation.y += (dt || 0.016) * 0.06; });
+  const grid = useMemo(() => buildGraticule(radius * 0.999), [radius]);
+  const world = useMemo(() => buildWorldLines(radius * 1.004, WORLD), [radius]);
+  const usSeg = useMemo(() => buildWorldLines(radius * 1.012, NATION), [radius]);
+  const baseQuat = useMemo(() => new THREE.Quaternion().setFromUnitVectors(lonLatToVec3(-98, 39, 1).normalize(), present.clone().normalize()), [present]);
+  const anchor = useMemo(() => present.clone().normalize().multiplyScalar(radius * 1.03), [present, radius]);
+  return (
+    <group>
+      <group ref={spin}>
+        <group quaternion={baseQuat.toArray()}>
+          <mesh><sphereGeometry args={[radius, 48, 48]} /><meshStandardMaterial color="#05101d" emissive="#0a1e33" emissiveIntensity={0.5} metalness={0.2} roughness={0.9} /></mesh>
+          <lineSegments geometry={grid}><lineBasicMaterial color={accent} transparent opacity={0.14} toneMapped={false} /></lineSegments>
+          <lineSegments geometry={world}><lineBasicMaterial color="#46d6b6" transparent opacity={0.6} toneMapped={false} /></lineSegments>
+          <lineSegments geometry={usSeg}><lineBasicMaterial color={accent} transparent opacity={0.98} toneMapped={false} /></lineSegments>
+        </group>
+      </group>
+      {/* atmosphere rim glow */}
+      <mesh><sphereGeometry args={[radius * 1.05, 48, 48]} /><meshBasicMaterial color="#2f7fff" transparent opacity={0.12} side={THREE.BackSide} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
+      {/* fixed focus marker where the panel tethers down */}
+      <mesh position={anchor.toArray()}><sphereGeometry args={[0.85, 16, 16]} /><meshBasicMaterial color={accent} toneMapped={false} /></mesh>
+    </group>
+  );
+}
+
 function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
   // Build the 3D night map once: terrain heightfield clipped to the US, city lights,
   // draped neon borders, and a height sampler for placing markers on the terrain.
@@ -315,15 +372,22 @@ function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
     // terrain
     const NX = 220, NZ = Math.round(NX * d / w);
     const geo = new THREE.PlaneGeometry(w, d, NX, NZ); geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position; const cols = [];
+    const pos = geo.attributes.position; const cols = [], alphas = [];
     const cLow = new THREE.Color('#0c2b46'), cMid = new THREE.Color('#12463a'), cHi = new THREE.Color('#3f5238'), cPeak = new THREE.Color('#6b6f63');
     for (let i = 0; i < pos.count; i++) {
       const wx = pos.getX(i) + cx, wz = pos.getZ(i) + cz; const h = heightAt(wx, wz); pos.setY(i, h);
       let c; if (h <= seaY + 0.01) c = cLow; else { const e = h / HS; c = e < 0.4 ? cMid.clone().lerp(cHi, e / 0.4) : cHi.clone().lerp(cPeak, (e - 0.4) / 0.6); }
-      cols.push(c.r, c.g, c.b);
+      cols.push(c.r, c.g, c.b); alphas.push(h > seaY + 0.01 ? 1 : 0);
     }
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.computeVertexNormals();
-    const terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.1, roughness: 0.92, envMapIntensity: 0.4 }));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    geo.setAttribute('aAlpha', new THREE.Float32BufferAttribute(alphas, 1)); geo.computeVertexNormals();
+    // Discard the sea (outside-US) fragments so only the US land floats — the globe shows through.
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.1, roughness: 0.92, envMapIntensity: 0.4 });
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = 'attribute float aAlpha;\nvarying float vAlpha;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vAlpha = aAlpha;');
+      shader.fragmentShader = 'varying float vAlpha;\n' + shader.fragmentShader.replace('#include <dithering_fragment>', '  if (vAlpha < 0.5) discard;\n#include <dithering_fragment>');
+    };
+    const terrain = new THREE.Mesh(geo, mat);
     terrain.position.set(cx, 0, cz); terrain.receiveShadow = true;
     // city lights
     const lp = [], lc = []; const warm = new THREE.Color('#ffe6b0'), cool = new THREE.Color('#bcd8ff');
@@ -347,17 +411,39 @@ function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
       critical: (p.unitList || []).reduce((s, u) => s + (u.assets || []).filter((a) => a.status === 'critical').length, 0) };
   }), [plants, map]);
 
+  // Composition: the detailed US panel floats above a rotating grid globe, tethered to the US.
+  const LIFT = 60, R = 52;
+  const GC = [0, -34, -8];
+  const present = useMemo(() => new THREE.Vector3(0, 0.95, 0.3), []);
+  const anchorWorld = useMemo(() => {
+    const a = present.clone().normalize().multiplyScalar(R * 1.02);
+    return [GC[0] + a.x, GC[1] + a.y, GC[2] + a.z];
+  }, [present]);
+
   return (
     <>
       <color attach="background" args={['#02040a']} />
-      <fog attach="fog" args={['#02040a', 150, 470]} />
+      <fog attach="fog" args={['#02040a', 240, 680]} />
       <hemisphereLight intensity={0.05} groundColor={'#0a0f18'} color={'#33405a'} />
       <directionalLight position={[40, 120, 60]} intensity={0.28} color={'#5f79b8'} />
-      <primitive object={map.terrain} />
-      <CityLights points={map.cityLights} />
-      <Line points={map.nationLine} color={theme.accent} lineWidth={2.4} transparent opacity={0.95} />
-      {map.stateLines.map((pts, i) => <Line key={i} points={pts} color="#1f6f9c" lineWidth={1.1} transparent opacity={0.5} />)}
-      {sites.map((s) => <MapMarker key={s.name} site={s} theme={theme} hovered={hovered} onHover={onHover} onEnter={onEnter} />)}
+      <StarField count={1400} />
+
+      {/* rotating hologram Earth */}
+      <group position={GC}>
+        <HoloGlobe radius={R} accent={theme.accent} present={present} />
+      </group>
+      {/* tether line: US on the globe → the popped-out panel */}
+      <Line points={[anchorWorld, [0, LIFT - 1, 0]]} color={theme.accent} lineWidth={1.6} transparent opacity={0.7} dashed dashSize={2} gapSize={1.4} />
+
+      {/* the US night-map panel, lifted out of the globe */}
+      <group position={[0, LIFT, 0]}>
+        <primitive object={map.terrain} />
+        <CityLights points={map.cityLights} />
+        <Line points={map.nationLine} color={theme.accent} lineWidth={2.4} transparent opacity={0.95} />
+        {map.stateLines.map((pts, i) => <Line key={i} points={pts} color="#1f6f9c" lineWidth={1.1} transparent opacity={0.5} />)}
+        {sites.map((s) => <MapMarker key={s.name} site={s} theme={theme} hovered={hovered} onHover={onHover} onEnter={onEnter} />)}
+      </group>
+
       <CameraRig mode="sites" />
       <EffectComposer disableNormalPass>
         <Bloom mipmapBlur intensity={0.5} luminanceThreshold={0.0} luminanceSmoothing={0.2} />
