@@ -19,7 +19,7 @@ function HealthRing({ value, color }) {
       <svg width="56" height="56" className="-rotate-90">
         <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,.10)" strokeWidth="5" />
         <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={off} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+          strokeDasharray={c} strokeDashoffset={off} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
         <span className="text-[15px] font-bold text-white tabular-nums">{value != null ? Math.round(v) : '—'}</span>
@@ -127,21 +127,21 @@ export function AssetModal({ theme, asset, onClose }) {
       {asset && (
         <div className="flex flex-col max-h-[90vh]" style={{ background: surface }}>
           {/* solid dark banner — flows into the 3D viewport, no dashboard bleed-through */}
-          <div className="relative" style={{ background: 'linear-gradient(180deg, #16233a 0%, #0e1826 60%, #0b1420 100%)' }}>
-            <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${s.color} 0%, ${s.color}55 40%, transparent 90%)` }} />
+          <div className="relative" style={{ background: '#0f1522' }}>
+            <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: s.color }} />
             <div className="p-5 flex items-start justify-between gap-4">
               <div className="flex items-center gap-4">
                 <HealthRing value={asset.health != null ? asset.health : null} color={s.color} />
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-xl font-bold text-white tracking-tight">{asset.name}</h2>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide"
-                      style={{ background: `${s.color}22`, color: s.color, border: `1px solid ${s.color}66`, boxShadow: `inset 0 0 12px ${s.color}18` }}>
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color, boxShadow: `0 0 8px ${s.color}` }} />{s.label}
+                    <span className="eyebrow inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                      style={{ background: `${s.color}14`, color: s.color, border: `1px solid ${s.color}3a` }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />{s.label}
                     </span>
                     {liveStreaming && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide"
-                        style={{ background: '#2fd07a1f', color: '#2fd07a', border: '1px solid #2fd07a66' }} title="Per-second live values streaming from this equipment">
+                      <span className="eyebrow inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                        style={{ background: '#3fd08a14', color: '#3fd08a', border: '1px solid #3fd08a3a' }} title="Per-second live values streaming from this equipment">
                         <span className="relative flex w-1.5 h-1.5"><span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75 animate-ping" /><span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400" /></span>
                         Live
                       </span>
@@ -159,13 +159,13 @@ export function AssetModal({ theme, asset, onClose }) {
             </div>
 
             <div className="px-5 pb-3">
-              <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-white/[.04] border border-white/10">
+              <div className="inline-flex flex-wrap gap-1 p-1 rounded-[8px] bg-white/[.03] border border-white/10">
                 {[['model', '3D Model'], ['root', 'Root Cause'], ['watch', 'Watchlist'], ['anom', 'Anomalies'], ['pred', 'Predictions'], ['sim', 'Simulation'], ['wo', 'Work Orders']].map(([k, l]) => (
                   <button key={k} onClick={() => setTab(k)}
-                    className="px-3.5 py-1.5 rounded-lg text-sm font-semibold transition"
+                    className="px-3.5 py-1.5 rounded-[6px] text-sm font-semibold transition"
                     style={tab === k
-                      ? { background: '#ffffff', color: '#0e1826', boxShadow: '0 2px 8px rgba(0,0,0,.35)' }
-                      : { color: '#9fb0c6' }}>{l}</button>
+                      ? { background: `${theme.accent}22`, color: '#e6eef8', border: `1px solid ${theme.accent}55` }
+                      : { color: '#9fb0c6', border: '1px solid transparent' }}>{l}</button>
                 ))}
               </div>
             </div>

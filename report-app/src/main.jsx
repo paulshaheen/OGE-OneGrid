@@ -8,7 +8,7 @@ import './index.css';
 // build: hard-refresh (Ctrl+Shift+R) or open a private window.
 const BUILD_STAMP = '2026-08-18T10:40Z-govnav';
 // eslint-disable-next-line no-console
-console.log('%cOneGrid UI build ' + BUILD_STAMP, 'color:#37e0d0;font-weight:bold');
+console.log('%cOneGrid UI build ' + BUILD_STAMP, 'color:#3f96ff;font-weight:bold');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

@@ -102,11 +102,11 @@ export default function App() {
     <div className={`h-full w-full flex flex-col ${theme.app} ${theme.gridClass}`} style={theme.appStyle}>
       <header className={`relative z-20 flex items-center gap-4 px-4 sm:px-6 h-14 ${theme.nav}`}>
         <button onClick={() => { setGov(false); setPersonaId('executive'); }} className="flex items-center gap-2.5 text-left" title="Home">
-          <div className="w-8 h-8 rounded-lg grid place-items-center font-black text-sm"
-            style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.chart.series[1]})`, color: theme.mode === 'light' ? '#fff' : '#0a0f14' }}>OG</div>
+          <div className="w-7 h-7 grid place-items-center font-bold text-[13px] rounded-[5px]"
+            style={{ background: theme.accent, color: '#fff', letterSpacing: '-0.03em' }}>OG</div>
           <div className="leading-tight">
-            <div className={`text-sm font-bold ${theme.heading}`}>OneGrid</div>
-            <div className={`text-[10px] uppercase tracking-widest ${theme.sub}`}>{gov ? 'Governance & security' : PERSONAS.find((p) => p.id === personaId)?.tagline}</div>
+            <div className={`text-[15px] font-semibold tracking-tight ${theme.heading}`}>OneGrid</div>
+            <div className={`eyebrow ${theme.sub}`}>{gov ? 'Governance & security' : PERSONAS.find((p) => p.id === personaId)?.tagline}</div>
           </div>
         </button>
 

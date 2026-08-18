@@ -42,7 +42,7 @@ function TagTrend({ tag, units, live, color, theme }) {
   const posPct = (i, v) => ({ left: `${(x(i) / W) * 100}%`, top: `${(y(v) / H) * 100}%` });
   const Marker = ({ i, v, place }) => (
     <div className="absolute -translate-x-1/2 pointer-events-none" style={{ ...posPct(i, v) }}>
-      <div className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+      <div className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ background: color }} />
       <div className="absolute text-[9px] font-bold tabular-nums px-1 py-[1px] rounded whitespace-nowrap -translate-x-1/2"
         style={{ top: place === 'below' ? 6 : -15, background: 'rgba(10,16,26,.85)', color: '#eaf1f8', border: `1px solid ${color}55` }}>{fmt(v, 1)}</div>
     </div>
@@ -155,9 +155,9 @@ function Hotspot({ anchor, theme, value, active, hideLabel = false, labelPos, on
       <Html position={off} center zIndexRange={[30, 0]} style={{ pointerEvents: 'auto' }}>
         <button onClick={() => onClick(anchor)}
           className="px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition hover:scale-105"
-          style={{ background: active ? a.color : 'rgba(10,14,22,.92)', color: active ? '#0a0f14' : '#eaf1f8', border: `1.5px solid ${a.color}`, boxShadow: hasAlert ? `0 0 16px ${a.glow}` : '0 2px 8px rgba(0,0,0,.4)' }}>
+          style={{ background: active ? a.color : 'rgba(12,17,26,.94)', color: active ? '#0a0f14' : '#eaf1f8', border: `1px solid ${active ? a.color : a.color + '88'}`, boxShadow: '0 1px 3px rgba(0,0,0,.45)' }}>
           <div className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#0a0f14' : a.color, boxShadow: hasAlert ? `0 0 6px ${a.color}` : 'none' }} />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#0a0f14' : a.color }} />
             <span className="opacity-90">{anchor.label}</span>
           </div>
           <div className="text-[13px] font-bold tabular-nums">{value != null ? fmt(value, 1) : '—'}{anchor.tag?.units ? ` ${anchor.tag.units}` : ''}</div>
@@ -235,7 +235,7 @@ export function EquipmentDetail({ asset, theme, snapshot = {}, anomalies = [], r
         <directionalLight position={[-10, 8, -6]} intensity={0.9} color={'#9db8ff'} />
         {/* dramatic accent rim keyed to health status */}
         <spotLight position={[-6, 9, 10]} angle={0.6} penumbra={0.8} intensity={1.4} color={s.color} distance={44} />
-        <pointLight position={[8, 3, -8]} intensity={0.7} color={'#37e0d0'} />
+        <pointLight position={[8, 3, -8]} intensity={0.7} color={'#3f96ff'} />
         <SafeB><Suspense fallback={null}><Environment preset={'sunset'} environmentIntensity={1.1} /></Suspense></SafeB>
         <Model asset={asset} theme={theme} anchors={anchors} active={active} snapshot={snapshot}
           onPick={(a) => setActive((cur) => (cur === a.id ? null : a.id))} />
@@ -257,7 +257,7 @@ export function EquipmentDetail({ asset, theme, snapshot = {}, anomalies = [], r
           </span>
         ) : (
           <>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#ff5470', boxShadow: '0 0 8px #ff5470' }} />Critical {critCount}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#ff5470' }} />Critical {critCount}</span>
             <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#ffcc4d' }} />Watch {watchCount}</span>
             <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#35d69a' }} />Healthy {okCount}</span>
             <span style={{ color: '#8ea3bd' }}>click a zone for detail</span>

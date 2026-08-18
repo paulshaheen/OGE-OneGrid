@@ -35,7 +35,7 @@ export function StatusDot({ status, size = 8 }) {
   const s = statusOf(status);
   return (
     <span className="relative inline-flex" style={{ width: size, height: size }}>
-      <span className="absolute inset-0 rounded-full" style={{ background: s.color, boxShadow: `0 0 10px ${s.glow}` }} />
+      <span className="absolute inset-0 rounded-full" style={{ background: s.color }} />
       {status !== 'ok' && <span className="absolute inset-0 rounded-full animate-pingslow" style={{ background: s.color }} />}
     </span>
   );
@@ -44,8 +44,8 @@ export function StatusDot({ status, size = 8 }) {
 export function Pill({ status, children, theme }) {
   const s = statusOf(status);
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
-      style={{ background: `${s.color}22`, color: s.color, border: `1px solid ${s.color}44` }}>
+    <span className="eyebrow inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+      style={{ background: `${s.color}14`, color: s.color, border: `1px solid ${s.color}3a` }}>
       <StatusDot status={status} size={7} /> {children || s.label}
     </span>
   );
@@ -58,7 +58,7 @@ export function Chip({ theme, children, className = '' }) {
 export function SectionTitle({ theme, children, right }) {
   return (
     <div className="flex items-center justify-between mb-3">
-      <h3 className={`text-sm font-semibold tracking-wide uppercase ${theme.sub}`}>{children}</h3>
+      <h3 className="eyebrow" style={{ color: theme.accent }}>{children}</h3>
       {right}
     </div>
   );

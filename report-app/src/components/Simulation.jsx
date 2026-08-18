@@ -233,7 +233,7 @@ function FailMarker({ pos, color, stress, broken }) {
 
 function TwinRig({ type, target, stress, broken, theme }) {
   const grp = useRef();
-  const accent = broken ? '#ff5470' : lerpHex(theme.accent || '#37e0d0', '#ff8c42', stress * 0.9);
+  const accent = broken ? '#ff5470' : lerpHex(theme.accent || '#3f96ff', '#ff8c42', stress * 0.9);
   useFrame((st) => {
     if (!grp.current) return;
     const wob = broken ? (Math.sin(st.clock.elapsedTime * 34) * 0.05 + Math.sin(st.clock.elapsedTime * 61) * 0.03) : 0;

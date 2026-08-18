@@ -357,7 +357,7 @@ function clipRegion(box) {
 // A dark grid globe with glowing continent coastlines + lat/long graticule + atmosphere rim.
 // The globe spins (angle published via spinRef); the US is highlighted brighter and starts
 // facing the popped-out panel.
-function HoloGlobe({ radius = 52, accent = '#37e0d0', present, spinRef, onPick }) {
+function HoloGlobe({ radius = 52, accent = '#3f96ff', present, spinRef, onPick }) {
   const grp = useRef();
   useFrame((_, dt) => { const v = (spinRef.current || 0) + (dt || 0.016) * 0.06; spinRef.current = v; if (grp.current) grp.current.rotation.y = v; });
   const grid = useMemo(() => buildGraticule(radius * 0.999), [radius]);

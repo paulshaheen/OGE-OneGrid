@@ -47,7 +47,7 @@ const MAT = {
 
 // Each model returns { anchors: [{id,label,pos,hint}], node } via a component that
 // renders the geometry and exposes anchor points for tag hotspots.
-export function EquipmentGeometry({ type, accent = '#37e0d0', running = true, detail = false }) {
+export function EquipmentGeometry({ type, accent = '#3f96ff', running = true, detail = false }) {
   switch (type) {
     case 'turbine': return <Turbine accent={accent} running={running} detail={detail} />;
     case 'boiler': return <Boiler accent={accent} running={running} detail={detail} />;

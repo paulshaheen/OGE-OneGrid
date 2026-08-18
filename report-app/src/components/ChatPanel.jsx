@@ -190,13 +190,11 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
     <>
       {/* Launcher */}
       <motion.button data-tour="chat" onClick={() => setOpen(true)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: open ? 0 : 1, y: open ? 12 : 0 }}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 pl-3.5 pr-4 py-3 rounded-full font-semibold text-sm shadow-2xl"
-        style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.chart.series[1]})`, color: theme.persona === 'executive' ? '#fff' : '#06121f', boxShadow: `0 10px 30px ${theme.accent}55`, pointerEvents: open ? 'none' : 'auto' }}
-        whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-        <span className="relative flex w-5 h-5 items-center justify-center">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4L12 3z" fill="currentColor"/><circle cx="18.5" cy="16.5" r="2" fill="currentColor"/></svg>
-        </span>
-        Chat with your data
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-[8px] font-semibold text-[13px]"
+        style={{ background: theme.accent, color: '#fff', border: '1px solid rgba(255,255,255,0.14)', pointerEvents: open ? 'none' : 'auto' }}
+        whileTap={{ scale: 0.98 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        Ask the data
       </motion.button>
 
       <AnimatePresence>
@@ -208,9 +206,9 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
               style={{ background: bg, color: text, borderLeft: `1px solid ${border}`, boxShadow: '-20px 0 60px rgba(0,0,0,.35)' }}
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 32 }}>
               {/* header */}
-              <div className="flex items-center gap-3 px-4 py-3.5 shrink-0" style={{ borderBottom: `1px solid ${border}`, background: `linear-gradient(180deg, ${theme.accent}14, transparent)` }}>
-                <div className="w-8 h-8 rounded-lg grid place-items-center" style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.chart.series[1]})`, color: '#06121f' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4L12 3z" fill="currentColor"/></svg>
+              <div className="flex items-center gap-3 px-4 py-3.5 shrink-0" style={{ borderBottom: `1px solid ${border}` }}>
+                <div className="w-8 h-8 rounded-[6px] grid place-items-center" style={{ background: theme.accent, color: '#fff' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 </div>
                 <div className="leading-tight flex-1 min-w-0">
                   <div className="font-bold text-[15px]">Chat with your data</div>
