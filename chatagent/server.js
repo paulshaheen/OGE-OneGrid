@@ -945,14 +945,27 @@ const server = http.createServer(async (req, res) => {
                 const token = await getToken('https://api.fabric.microsoft.com');
                 const { text, tool } = await askDataAgent({
                     url, token, question: String(message),
-                    timeoutMs: 150000, onStatus: sendStatus,
+                    timeoutMs: 55000, onStatus: sendStatus,
                 });
                 res.write(`data: ${JSON.stringify({ type: 'done', reply: text || 'No answer returned.', source: 'fabric-data-agent', tool, queries: [], toolCalls: 1 })}\n\n`);
                 res.end();
             } catch (e) {
                 console.error('Ontology agent error:', e.message);
-                res.write(`data: ${JSON.stringify({ type: 'done', reply: `Fabric Data Agent error: ${e.message}`, source: 'fabric-data-agent', queries: [], toolCalls: 0 })}\n\n`);
-                res.end();
+                // The Fabric Data Agent runtime is in preview and can return transient
+                // errors. Rather than surface a raw failure in a live demo, fall back to
+                // the tool-calling assistant (which queries the same Fabric data via
+                // DAX/KQL) so the user always gets a grounded answer.
+                try {
+                    const { message } = JSON.parse((body.charCodeAt(0) === 0xFEFF ? body.slice(1) : body).trim());
+                    sendStatus('Fabric Data Agent is busy — answering with the assistant…');
+                    const fb = await chatWithCopilot(String(message), [], sendStatus, 'analyst');
+                    const note = '_(Answered by the OneGrid assistant; the Fabric Data Agent was momentarily unavailable.)_\n\n';
+                    res.write(`data: ${JSON.stringify({ type: 'done', reply: note + (fb.reply || 'No answer returned.'), source: 'assistant-fallback', queries: fb.queries || [], toolCalls: fb.toolCalls || 0 })}\n\n`);
+                    res.end();
+                } catch (e2) {
+                    res.write(`data: ${JSON.stringify({ type: 'done', reply: `Fabric Data Agent error: ${e.message}`, source: 'fabric-data-agent', queries: [], toolCalls: 0 })}\n\n`);
+                    res.end();
+                }
             }
         });
         return;

@@ -97,20 +97,31 @@ async function askDataAgent({ url, token, question, timeoutMs, onStatus }) {
     const schema = tool.inputSchema || tool.input_schema || {};
     const argName = Object.keys(schema.properties || { userQuestion: {} })[0] || 'userQuestion';
 
-    // 4) call the tool
-    status('Querying the ontology…');
-    r = await rpc(url, token, session, {
-        jsonrpc: '2.0', id: 3, method: 'tools/call',
-        params: { name: tool.name, arguments: { [argName]: question } },
-    }, timeoutMs);
-    const result = pickResult(r.messages, 3) || {};
-
-    const parts = (result.content || [])
-        .filter(b => b && (b.type === 'text' || typeof b.text === 'string'))
-        .map(b => b.text);
-    const text = parts.join('\n').trim();
-    if (result.isError) throw new Error(text || 'MCP: tool call reported an error');
-    return { text, tool: tool.name, raw: result };
+    // 4) call the tool. The preview data-agent runtime intermittently returns transient
+    // 500 internal errors on non-trivial queries (the same question often succeeds on a
+    // retry), so attempt the call a few times with a short backoff before giving up.
+    const maxAttempts = 2;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        status(attempt === 1 ? 'Querying the ontology…' : `Retrying the query (attempt ${attempt})…`);
+        try {
+            r = await rpc(url, token, session, {
+                jsonrpc: '2.0', id: 3 + attempt, method: 'tools/call',
+                params: { name: tool.name, arguments: { [argName]: question } },
+            }, timeoutMs);
+            const result = pickResult(r.messages, 3 + attempt) || {};
+            const parts = (result.content || [])
+                .filter(b => b && (b.type === 'text' || typeof b.text === 'string'))
+                .map(b => b.text);
+            const text = parts.join('\n').trim();
+            if (result.isError) throw new Error(text || 'MCP: tool call reported an error');
+            return { text, tool: tool.name, raw: result };
+        } catch (e) {
+            lastErr = e;
+            if (attempt < maxAttempts) await new Promise((res) => setTimeout(res, 1500));
+        }
+    }
+    throw lastErr || new Error('MCP: tool call failed');
 }
 
 module.exports = { askDataAgent };
