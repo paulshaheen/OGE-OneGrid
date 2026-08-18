@@ -32,7 +32,7 @@ function CapacityPausedBanner({ status }) {
                 {status.inferred ? 'Live data unavailable' : 'Fabric capacity paused'}
               </div>
               <div className="text-[12px] opacity-80" style={{ color: '#fde68a' }}>
-                {status.message || 'Live data is unavailable outside normal operating hours. Readings refresh automatically when the capacity restarts.'}
+                {status.message || 'Live data is available during operating hours, 8 AM–9 PM EST daily. It refreshes automatically when the capacity restarts.'}
               </div>
             </div>
           </div>
