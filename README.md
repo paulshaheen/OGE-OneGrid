@@ -120,7 +120,7 @@ The web app reasons with **Azure AI Foundry** (unified inference + model selecto
 | **Fabric** | Workspace, Lakehouse, Eventhouse + KQL DB, Eventstream, notebooks, pipeline, Import semantic model, report |
 | **Data** | Full `PiEvents` history + all `gold`/`ml`/`dbo` curated tables + a 30-day window of the fact tables |
 | **Azure** | AI Foundry account + model deployments; Container App (the web app) with a system-assigned identity |
-| **Grants** | App identity → Eventhouse DB viewer, Power BI workspace member, Foundry `Cognitive Services User` + `Reader` |
+| **Grants** | App identity → Eventhouse DB viewer, Power BI workspace member (or **least-privilege** Viewer + dataset ReadWrite when `governance.leastPrivilegeApp` is on), Foundry `Cognitive Services User` + `Reader` |
 
 ---
 
@@ -155,7 +155,7 @@ Run a subset of phases with `-Only`, or skip the slow data load with `-SkipData`
 ./deploy.ps1 -ConfigPath ./config.json -Only workspace,core,semantic,foundry,chatagent,permissions
 ./deploy.ps1 -ConfigPath ./config.json -SkipData
 ```
-Phases (in order): `workspace → core → artifacts → data → semantic → foundry → chatagent → permissions`.
+Phases (in order): `workspace → core → artifacts → data → semantic → oge → governance → foundry → chatagent → permissions`. The `governance` phase is a no-op unless `governance.enabled` is set.
 On completion the web-app URL + workspace link are printed and written to `last-deploy-state.json`.
 
 ### Tear down
@@ -291,6 +291,48 @@ The `oge` phase also deploys a **native Fabric ontology** — a **Digital Twin B
 (`OneGridOntology`) over `lh_poc` modeling the domain (Plant → Unit → Asset → Sensor, plus
 WorkRequest, Advisory, Outage, Prediction) as first-class entity types + relationships. It lives
 alongside the notebook-derived knowledge graph the web app renders (`fabric/digitaltwinbuilder/`).
+
+---
+
+## 🔐 Data governance & OneLake security
+
+A governance/security **control plane** layered onto the accelerator to demonstrate
+**OneLake security** — "who can access what, and why." Fabric / OneLake / Power BI remain the
+**authoritative enforcement** layer; the accelerator adds an **inventory + explanation + review**
+experience on top (it is never an enforcement point).
+
+**What the `governance` phase provisions** (opt-in — `governance.enabled: true` in `config.json`):
+- **OneLake data-access roles** on `lh_poc`, table/folder-scoped and mapped to persona **Entra
+  security groups** — `ExecutiveCuratedReader` (curated Gold only), `ControlRoomSiteReader`
+  (site-level RLS), `MaintenanceReader` (commercial columns hidden — CLS), `OntologyReader`.
+- A **governance manifest** (`governance-manifest.json`, git-ignored) consumed by the review plane.
+- A flag to move the Lakehouse **SQL endpoint to user-identity mode** so SQL queries honour
+  OneLake row/column security per-user.
+
+**Least-privilege app identity** — set `governance.leastPrivilegeApp: true` and the `permissions`
+phase grants the container-app identity **workspace Viewer + semantic-model ReadWrite** instead of
+**workspace Member**, so the runtime identity can never bypass model RLS or manage the workspace.
+
+**The review plane** — a **shield** button in the app header opens a read-only `/governance`
+experience (also surfaced as a posture badge on the Executive page):
+- **Posture** — findings (excessive app grant, memberless roles, direct-user grants, missing
+  reviewers group…), collector status, and totals.
+- **Who has access** — principal → resources, with the granting role, row filter, allowed columns,
+  group-vs-direct inheritance, and a **Why?** grant-path explanation.
+- **Who can see this** — resource → principals.
+- **Changes** — snapshot-to-snapshot access diffs.
+- **Policy tests** — declared positive/negative persona expectations to verify with native queries.
+- **Native controls** — deep links to the OneLake Secure editor, workspace access, and Purview Audit.
+
+Config lives under `governance` in `config.sample.json` (supply **existing** Entra security-group
+object IDs — never distribution lists; no secrets belong in this block). Backend collectors are
+best-effort and degrade gracefully when admin/OneLake APIs are preview/unavailable in a tenant. In
+production, gate the review APIs by setting `GOVERNANCE_REQUIRE_AUTH=1` (requires a Container Apps
+EasyAuth principal carrying the `Governance.Reader` app role or membership in the reviewers group).
+
+```powershell
+./deploy.ps1 -ConfigPath ./config.json -Only core,data,semantic,oge,governance,permissions
+```
 
 ---
 

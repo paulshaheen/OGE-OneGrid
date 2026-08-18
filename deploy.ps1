@@ -935,12 +935,34 @@ function Phase-Permissions {
     try { Invoke-RestMethod -Uri "$($state.KustoUri)/v1/rest/mgmt" -Method Post -Headers @{ Authorization="Bearer $(KustoTok $state.KustoUri)"; "Content-Type"="application/json" } -Body $body | Out-Null; Log "  eventhouse viewer granted" }
     catch { Log "  eventhouse grant: $($_.Exception.Message)" "Yellow" }
   }
-  # Power BI workspace member
-  try {
-    $b = @{ identifier=$appId; principalType="App"; groupUserAccessRight="Member" } | ConvertTo-Json
-    Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$($state.WorkspaceId)/users" -Method Post -Headers @{ Authorization="Bearer $(PbiTok)"; "Content-Type"="application/json" } -Body $b | Out-Null
-    Log "  power bi workspace member granted"
-  } catch { Log "  pbi grant: $($_.Exception.Message)" "Yellow" }
+  # Power BI workspace grant for the app identity. Default: Member (original behaviour).
+  # When governance.leastPrivilegeApp is enabled, grant least privilege instead: workspace
+  # Viewer (read the report) + semantic-model ReadWrite (executeQueries / Build) so the runtime
+  # identity can never bypass model RLS or manage the workspace. See the governance/security plane.
+  $leastPriv = $false
+  try { $leastPriv = [bool]$cfg.governance.leastPrivilegeApp } catch {}
+  if ($leastPriv) {
+    try {
+      $b = @{ identifier=$appId; principalType="App"; groupUserAccessRight="Viewer" } | ConvertTo-Json
+      Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$($state.WorkspaceId)/users" -Method Post -Headers @{ Authorization="Bearer $(PbiTok)"; "Content-Type"="application/json" } -Body $b | Out-Null
+      Log "  power bi workspace VIEWER granted (least privilege)"
+    } catch { Log "  pbi viewer grant: $($_.Exception.Message)" "Yellow" }
+    if ($state.DatasetId) {
+      try {
+        $bb = @{ identifier=$appId; principalType="App"; datasetUserAccessRight="ReadWrite" } | ConvertTo-Json
+        Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$($state.WorkspaceId)/datasets/$($state.DatasetId)/users" -Method Post -Headers @{ Authorization="Bearer $(PbiTok)"; "Content-Type"="application/json" } -Body $bb | Out-Null
+        Log "  semantic-model build granted to app identity"
+      } catch { Log "  semantic-model grant: $($_.Exception.Message)" "Yellow" }
+    }
+    $state.AppGrant = "least-privilege (workspace Viewer + dataset ReadWrite)"
+  } else {
+    try {
+      $b = @{ identifier=$appId; principalType="App"; groupUserAccessRight="Member" } | ConvertTo-Json
+      Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$($state.WorkspaceId)/users" -Method Post -Headers @{ Authorization="Bearer $(PbiTok)"; "Content-Type"="application/json" } -Body $b | Out-Null
+      Log "  power bi workspace member granted"
+    } catch { Log "  pbi grant: $($_.Exception.Message)" "Yellow" }
+    $state.AppGrant = "workspace Member"
+  }
 }
 
 # ============================ PHASE: teardown ================================
@@ -1226,6 +1248,126 @@ function Phase-DataPlane {
   }
 }
 
+# ============================ PHASE: governance ==============================
+# Provisions the OneLake data-access security plane: creates data-access roles on the
+# Lakehouse (table/folder scoped, Read) mapped to the persona Entra security groups, and
+# records a governance manifest consumed by the app's read-only /governance review plane.
+# Fabric/OneLake remain the AUTHORITATIVE enforcement layer; the manifest is inventory only.
+# Opt-in: set governance.enabled=true in config. Idempotent (reads current roles + ETag).
+function Phase-Governance {
+  if (-not $cfg.governance -or -not $cfg.governance.enabled) { Log "PHASE governance: disabled (set governance.enabled=true to provision the OneLake security plane) - skipping" "DarkGray"; return }
+  Log "PHASE governance: OneLake data-access roles + review-plane manifest"
+
+  $ws = $state.WorkspaceId
+  if (-not $ws) { try { $ws = (FGet "workspaces").value | Where-Object { $_.displayName -eq $cfg.fabric.workspaceName } | Select-Object -First 1 -ExpandProperty id } catch {} }
+  if (-not $ws) { Log "  no workspace resolved - skipping governance" "Yellow"; return }
+  $lhId = $state.LakehouseId
+  if (-not $lhId) { try { $lhId = (FGet "workspaces/$ws/lakehouses").value | Where-Object { $_.displayName -eq $cfg.fabric.lakehouseName } | Select-Object -First 1 -ExpandProperty id } catch {} }
+  if (-not $lhId) { Log "  no lakehouse resolved - skipping governance" "Yellow"; return }
+  $tenant = AzTry { az account show --query tenantId -o tsv }
+
+  $g = $cfg.governance.groups
+  # Persona -> OneLake role blueprint. Path is relative to the lakehouse OneLake root.
+  # rowFilter / hiddenColumns are declarative intent surfaced by the review plane and (where
+  # supported) enforced by semantic-model RLS/OLS; OneLake enforces the table/folder grant.
+  $blueprint = @(
+    @{ role="ExecutiveCuratedReader"; obj=$g.executivesObjectId;     groupName="OneGrid-Executives";      nick="onegrid-executives";      paths=@("/Tables/gold");              rowFilter=$null;                        hiddenColumns=@();                                          desc="Curated fleet KPIs only; no raw telemetry or maintenance notes." }
+    @{ role="ControlRoomSiteReader";  obj=$g.controlRoomObjectId;    groupName="OneGrid-ControlRoom";     nick="onegrid-controlroom";     paths=@("/Tables/gold","/Tables/ml"); rowFilter="site_id IN (assigned sites)"; hiddenColumns=@();                                          desc="Live operational + ML tables, filtered to assigned sites (RLS)." }
+    @{ role="MaintenanceReader";      obj=$g.maintenanceObjectId;    groupName="OneGrid-Maintenance";     nick="onegrid-maintenance";     paths=@("/Tables/gold","/Tables/ml"); rowFilter=$null;                        hiddenColumns=@("labor_rate","vendor_cost","contract_id"); desc="Asset health, work orders, predictions; commercial columns hidden (CLS)." }
+    @{ role="OntologyReader";         obj=$g.ontologyReadersObjectId; groupName="OneGrid-OntologyReaders"; nick="onegrid-ontologyreaders"; paths=@("/Tables/oge");              rowFilter=$null;                        hiddenColumns=@();                                          desc="Ontology / approved entity relationships (read-only)." }
+  )
+
+  # Demo mode makes the roles demonstrable out of the box: resolve the signed-in user and, when
+  # no group object id is supplied, auto-create a persona Entra security group (best-effort) and
+  # add the deploying user to it. If group creation isn't permitted (no directory rights), fall
+  # back to seeding the signed-in user DIRECTLY as a role member so the review plane is still
+  # populated and OneLake enforcement is real. Set governance.autoCreateGroups=false to opt out.
+  $isDemo = ($cfg.governance.mode -ne 'inventory')
+  $auto = $isDemo -and ($cfg.governance.autoCreateGroups -ne $false)
+  $meId = AzTry { az ad signed-in-user show --query id -o tsv }
+  $meName = AzTry { az ad signed-in-user show --query userPrincipalName -o tsv }
+  if ($isDemo -and $meId) { Log "  demo mode: seeding demonstrable members (signed-in user: $meName)" }
+  function Resolve-PersonaGroup($name, $nick) {
+    $id = AzTry { az ad group show --group $name --query id -o tsv }
+    if (-not $id -and $auto) {
+      $id = AzTry { az ad group create --display-name $name --mail-nickname $nick --query id -o tsv }
+      if ($id) { Log "  created Entra security group '$name'" "Green" }
+    }
+    if ($id -and $meId) { AzTry { az ad group member add --group $id --member-id $meId 2>$null } | Out-Null }
+    return $id
+  }
+
+  # Read existing roles + ETag (idempotent upsert).
+  $rolesUri = "workspaces/$ws/items/$lhId/dataAccessRoles"
+  $etag = $null
+  try {
+    $resp = Invoke-WebRequest -Uri "https://api.fabric.microsoft.com/v1/$rolesUri" -Headers @{ Authorization="Bearer $(FTok)" } -UseBasicParsing
+    $etag = ([string[]]$resp.Headers['ETag'])[0]
+  } catch { Log "  could not list existing OneLake roles (API may be preview/unavailable in this tenant): $($_.Exception.Message)" "Yellow" }
+
+  $manifest = @{ generatedAt=(Get-Date).ToUniversalTime().ToString("o"); workspaceId=$ws; lakehouseId=$lhId; lakehouseName=$cfg.fabric.lakehouseName; mode=$cfg.governance.mode; roles=@(); appGrant=$state.AppGrant; reviewers=$g.reviewersObjectId }
+
+  $roleObjs = @()
+  foreach ($bp in $blueprint) {
+    # Resolve this role's members: configured group id > auto-created persona group > (fallback)
+    # the signed-in user directly. Every entry is a valid Entra member of the OneLake role.
+    $memberMeta = @()   # for the manifest / review plane: {objectId,type,displayName}
+    $groupId = $bp.obj
+    if (-not $groupId -and $isDemo) { $groupId = Resolve-PersonaGroup $bp.groupName $bp.nick }
+    if ($groupId) {
+      $memberMeta += @{ objectId=$groupId; type="Group"; displayName=$bp.groupName }
+    }
+    # If no group could be established, seed the deploying user so the demo is still live.
+    if (-not $groupId -and $isDemo -and $meId) {
+      $memberMeta += @{ objectId=$meId; type="User"; displayName=$meName }
+    }
+    $entra = @()
+    foreach ($mm in $memberMeta) { $entra += @{ objectId=$mm.objectId; tenantId=$tenant } }
+
+    $perm = @()
+    foreach ($p in $bp.paths) {
+      $perm += @{ attributeName="Path";   attributeValueIncludedIn=@($p) }
+      $perm += @{ attributeName="Action"; attributeValueIncludedIn=@("Read") }
+    }
+    $roleObjs += @{
+      name=$bp.role
+      decisionRules=@(@{ effect="Permit"; permission=$perm })
+      members=@{ microsoftEntraMembers=$entra; fabricItemMembers=@() }
+    }
+    $manifest.roles += @{ name=$bp.role; groupObjectId=$groupId; groupName=$bp.groupName; paths=$bp.paths; rowFilter=$bp.rowFilter; hiddenColumns=$bp.hiddenColumns; description=$bp.desc; members=$memberMeta; membersConfigured=($memberMeta.Count -gt 0) }
+    if ($memberMeta.Count) { Log "  role $($bp.role) -> $($memberMeta.Count) member(s) on $($bp.paths -join ', ')" } else { Log "  role $($bp.role): no members resolved (define governance.groups or grant directory rights)" "Yellow" }
+  }
+
+  if ($cfg.governance.mode -ne 'inventory') {
+    $body = @{ value=$roleObjs } | ConvertTo-Json -Depth 12
+    try {
+      $h = @{ Authorization="Bearer $(FTok)"; "Content-Type"="application/json" }
+      if ($etag) { $h['If-Match'] = $etag }
+      Invoke-WebRequest -Uri "https://api.fabric.microsoft.com/v1/$rolesUri" -Method Put -Headers $h -Body ([Text.Encoding]::UTF8.GetBytes($body)) -UseBasicParsing | Out-Null
+      Log "  OneLake data-access roles applied ($($roleObjs.Count) roles)" "Green"
+      $manifest.applied = $true
+    } catch {
+      Log "  applying OneLake roles failed (API is preview; you can also apply in the OneLake Secure UI): $($_.Exception.Message)" "Yellow"
+      $manifest.applied = $false
+      $manifest.applyError = "$($_.Exception.Message)"
+    }
+  } else { Log "  mode=inventory: not writing roles (review plane reads whatever exists)"; $manifest.applied=$false }
+
+  # Switching the Lakehouse SQL analytics endpoint to user-identity mode (so SQL queries
+  # enforce OneLake row/column security per-user) has no stable API in every tenant version;
+  # flag it for the operator + review plane rather than assume an endpoint that may not exist.
+  if ($cfg.governance.sqlEndpointUserIdentityMode) {
+    Log "  NOTE: set the Lakehouse SQL endpoint to user-identity mode in workspace settings so SQL queries honour OneLake roles." "Yellow"
+    $manifest.sqlUserIdentityModeRequested = $true
+  }
+
+  $state.Governance = $manifest
+  try {
+    [IO.File]::WriteAllText((Join-Path $Here "governance-manifest.json"), ($manifest | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding($false)))
+    Log "  governance manifest written to governance-manifest.json" "Green"
+  } catch { Log "  could not write governance-manifest.json: $($_.Exception.Message)" "Yellow" }
+}
+
 # ============================ run =============================================
 if ($Teardown) { Phase-Teardown; return }
 
@@ -1236,6 +1378,7 @@ $phases = [ordered]@{
   data        = { Phase-Data }
   semantic    = { Phase-Semantic }
   oge         = { Phase-OGE }
+  governance  = { Phase-Governance }
   foundry     = { Phase-Foundry }
   chatagent   = { Phase-ChatAgent }
   permissions = { Phase-Permissions }
@@ -1271,7 +1414,7 @@ if ($script:phaseErrors.Count -eq 0) {
 if ($state.AppUrl)        { Log "Chat agent: $($state.AppUrl)" "Green" }
 elseif ($state.ChatAgentFailed) { Log "Chat agent: NOT DEPLOYED (see issues above)" "Yellow" }
 Log "Workspace:  https://app.fabric.microsoft.com/groups/$($state.WorkspaceId)" "Green"
-[IO.File]::WriteAllText((Join-Path $Here "last-deploy-state.json"), ($state | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
+[IO.File]::WriteAllText((Join-Path $Here "last-deploy-state.json"), ($state | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding($false)))
 Log "State written to last-deploy-state.json" "Green"
 $durSec = [int]((Get-Date) - $script:deployStart).TotalSeconds
 # Telemetry disabled — completion event not sent to Microsoft.

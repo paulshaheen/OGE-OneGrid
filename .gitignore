@@ -1,6 +1,8 @@
 # Local/secret config — never commit
 config.json
 last-deploy-state.json
+governance-manifest.json
+report-app/server/governance-snapshots.json
 *.env
 
 # OS / tooling

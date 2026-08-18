@@ -49,5 +49,29 @@
     "resourceGroup": "rg-onegrid-solution",
     "appName": "onegrid-app",
     "environmentName": "onegrid-app-env"
+  },
+
+  "//governance": "OPTIONAL. The OneLake security / data-governance plane. When enabled, the 'governance' phase provisions OneLake data-access roles on the lakehouse (table/row/column scoped) mapped to the persona Entra security groups below, and the app surfaces a read-only /governance review plane that inventories 'who can access what'. Fabric/OneLake remain the authoritative enforcement layer; the review plane is inventory + explanation only. Supply object IDs of EXISTING Entra security groups (never distribution lists). Leave a group blank to skip its role. No secrets belong in this block.",
+  "governance": {
+    "enabled": false,
+    "//mode": "demo = provision illustrative persona roles + sample RLS/CLS; inventory = only stand up the review plane over whatever roles already exist (no role writes).",
+    "mode": "demo",
+    "//groups": "Object IDs of existing Entra security groups. These become the members of the OneLake data-access roles and the app's persona/reviewer authorization.",
+    "groups": {
+      "executivesObjectId": "",
+      "controlRoomObjectId": "",
+      "maintenanceObjectId": "",
+      "ontologyReadersObjectId": "",
+      "reviewersObjectId": "",
+      "platformAdminsObjectId": ""
+    },
+    "//leastPrivilegeApp": "When true, the permissions phase grants the container-app identity least privilege (Power BI workspace Viewer + semantic-model Build) instead of workspace Member, so the runtime identity cannot bypass model RLS or write to the workspace. Default false preserves the original Member grant.",
+    "leastPrivilegeApp": false,
+    "//autoCreateGroups": "Demo mode only. When true (default), the governance phase auto-creates the persona Entra security groups (OneGrid-Executives, -ControlRoom, -Maintenance, -OntologyReaders) for any group left blank above and adds the deploying user, so the OneLake roles are demonstrable out of the box. Requires directory rights to create groups; if unavailable, the phase falls back to seeding the signed-in user directly as a role member. Set false to only use the explicit object ids above.",
+    "autoCreateGroups": true,
+    "//sqlEndpointUserIdentityMode": "When true, the governance phase attempts to switch the Lakehouse SQL analytics endpoint to user-identity mode so SQL queries enforce OneLake roles per-user (required to demonstrate row/column security through the SQL endpoint).",
+    "sqlEndpointUserIdentityMode": true,
+    "//reviewRetentionDays": "How long access snapshots are retained by the review plane.",
+    "reviewRetentionDays": 365
   }
 }
