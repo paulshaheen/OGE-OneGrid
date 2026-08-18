@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { attachRealtime } from './realtime.js';
 import { resolveTarget } from './target.js';
 import { proxyChat, proxyModels, warmAgent } from './chat.js';
+import { isCapacityPausedError } from './fabric.js';
 import * as api from './dataApi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +36,7 @@ async function handleApi(req, res, url) {
   const p = url.pathname;
   try {
     if (p === '/api/health') return json(res, 200, { ok: true, target: resolveTarget() });
+    if (p === '/api/status') return json(res, 200, await api.status());
     if (p === '/api/fleet-health') return json(res, 200, await api.fleetHealth());
     if (p === '/api/fleet-assets') return json(res, 200, await api.fleetAssets());
     if (p === '/api/facility-model') return json(res, 200, await api.facilityModel());
@@ -59,7 +61,10 @@ async function handleApi(req, res, url) {
     }
     return json(res, 404, { error: 'unknown endpoint' });
   } catch (e) {
-    return json(res, 500, { error: String(e.message || e) });
+    // A paused/suspended capacity isn't a server bug — surface it as 503 with a flag so the
+    // client can show a clear "capacity paused" banner instead of a generic error/blank page.
+    const paused = isCapacityPausedError(e);
+    return json(res, paused ? 503 : 500, { error: String(e.message || e), capacityPaused: paused });
   }
 }
 

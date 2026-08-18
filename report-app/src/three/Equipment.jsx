@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { STEEL_TEX, PLATES_TEX, DARK_TEX, PAINTED_TEX, CONCRETE_TEX, HAS_TEX, STEAM_TEX } from './textures.js';
 
@@ -23,7 +24,7 @@ export function equipmentType(a) {
 // With real PBR sets loaded, the maps drive metalness/roughness/albedo — so we keep the
 // scalars near 1.0 and let color=white show the true texture (tints only where we want a
 // material read, e.g. copper / hot metal). Without textures (SSR), fall back to flat tints.
-const envI = 1.15;
+const envI = 1.5;
 const M = HAS_TEX;
 const MAT = {
   steel:     M ? { color: '#eef2f7', metalness: 1.0, roughness: 1.0, envMapIntensity: envI, normalScale: [1, 1], ...STEEL_TEX }
@@ -320,6 +321,57 @@ function BurnerFX({ position = [0, 0, 0], detail = false, run = true }) {
   );
 }
 
+// ---- greeble / added industrial detail (matches the model-gallery look) ----
+function Seg({ a, b, r = 0.05, mat = MAT.pipe }) {
+  const va = new THREE.Vector3(a[0], a[1], a[2]), vb = new THREE.Vector3(b[0], b[1], b[2]);
+  const dir = new THREE.Vector3().subVectors(vb, va), len = dir.length();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  const mid = va.clone().add(vb).multiplyScalar(0.5);
+  return <mesh position={mid.toArray()} quaternion={[q.x, q.y, q.z, q.w]} castShadow>
+    <cylinderGeometry args={[r, r, len, 8]} /><meshStandardMaterial {...mat} /></mesh>;
+}
+function Valve({ pos }) {
+  return <group position={pos}>
+    <mesh castShadow><boxGeometry args={[0.4, 0.42, 0.5]} /><meshStandardMaterial {...MAT.painted} /></mesh>
+    <mesh position={[0, 0.45, 0]} castShadow><cylinderGeometry args={[0.08, 0.08, 0.5, 8]} /><meshStandardMaterial {...MAT.pipe} /></mesh>
+    <mesh position={[0, 0.72, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.22, 0.04, 8, 18]} /><meshStandardMaterial {...MAT.darksteel} /></mesh>
+  </group>;
+}
+function JBox({ pos, h = 0.7 }) {
+  return <group position={pos}>
+    <mesh castShadow><boxGeometry args={[0.5, h, 0.32]} /><meshStandardMaterial {...MAT.painted} /></mesh>
+    <Seg a={[0, -h / 2, 0]} b={[0, -h / 2 - 0.7, 0]} r={0.05} />
+  </group>;
+}
+function LaggingRings({ x0, x1, y, z = 0, r, count }) {
+  const items = [];
+  for (let i = 0; i < count; i++) { const x = x0 + (x1 - x0) * (i / (count - 1));
+    items.push(<mesh key={i} position={[x, y, z]} rotation={[0, 0, Math.PI / 2]}><torusGeometry args={[r, 0.045, 6, 28]} /><meshStandardMaterial {...MAT.casing} /></mesh>); }
+  return <group>{items}</group>;
+}
+function CableTray({ a, b, y }) {
+  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+  const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.6));
+  const rungs = [];
+  for (let i = 0; i <= n; i++) { const t = i / n;
+    rungs.push(<mesh key={i} position={[a[0] + (b[0] - a[0]) * t, y + 0.06, a[1] + (b[1] - a[1]) * t]} rotation={[0, ang, 0]}><boxGeometry args={[0.32, 0.03, 0.05]} /><meshStandardMaterial {...MAT.darksteel} /></mesh>); }
+  return <group>
+    <Seg a={[a[0], y, a[1]]} b={[b[0], y, b[1]]} r={0.05} mat={MAT.darksteel} />
+    <Seg a={[a[0], y + 0.12, a[1]]} b={[b[0], y + 0.12, b[1]]} r={0.05} mat={MAT.darksteel} />
+    {rungs}
+  </group>;
+}
+function Greeble({ type }) {
+  return <group>
+    <JBox pos={[-2.2, 1.3, -2.1]} /><JBox pos={[2.4, 1.1, -2.1]} /><CableTray a={[-3, -1.9]} b={[3, -1.9]} y={0.72} />
+    {type === 'turbine' && <><LaggingRings x0={-4.2} x1={1.3} y={1.6} r={1.42} count={11} /><Valve pos={[0, 1.05, 2.1]} /><JBox pos={[4.6, 1.65, 1.0]} /><Seg a={[-4.6, 1.9, 1.2]} b={[-4.6, 3.1, 1.2]} /><mesh position={[-4.9, 2.4, -1.4]} castShadow><boxGeometry args={[1.0, 0.7, 0.8]} /><meshStandardMaterial {...MAT.painted} /></mesh></>}
+    {type === 'boiler' && <><Valve pos={[1.0, 7.55, 0.6]} /><JBox pos={[-2.55, 3.2, 2.4]} /><CableTray a={[-2.8, 2.7]} b={[2.8, 2.7]} y={1.0} />{[0, 1, 2].map((i) => <mesh key={i} position={[-2.55, 2 + i * 1.3, 2.4]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.1, 0.1, 2.0, 8]} /><meshStandardMaterial {...MAT.pipe} /></mesh>)}</>}
+    {type === 'pump' && <><Valve pos={[1.9, 3.95, 0]} /><Seg a={[1.9, 3.9, 0]} b={[2.8, 3.9, 0]} r={0.06} /><JBox pos={[-2.2, 2.7, -0.8]} /></>}
+    {type === 'generator' && <><CableTray a={[-0.6, -1.3]} b={[0.6, -1.3]} y={3.5} /><JBox pos={[3.0, 1.65, 1.1]} /><Valve pos={[-2.5, 1.25, 1.6]} /><LaggingRings x0={-2.4} x1={2.4} y={2.2} r={1.86} count={7} /></>}
+    {type === 'skid' && <><Valve pos={[-1.9, 1.45, 1.0]} /><JBox pos={[-1.6, 1.05, -1.0]} /><Seg a={[0, 1.1, 1.0]} b={[1.6, 1.1, 1.0]} r={0.06} /></>}
+  </group>;
+}
+
 function Turbine({ accent, running = true, detail = false }) {
   const stages = [
     { x: -3.1, r: 1.35, l: 2.4 },
@@ -382,6 +434,7 @@ function Turbine({ accent, running = true, detail = false }) {
       </mesh>
       {/* spinning coupling between turbine and generator (running indicator) */}
       <group position={[4.35, 1.6, 0]}><Coupling r={0.62} len={0.7} speed={9} run={running} axis="x" /></group>
+      <Greeble type="turbine" />
       {/* gland / exhaust vapour wisps (detail close-up only) */}
       {detail && <Steam position={[2.4, 4.2, 0]} count={12} spread={0.7} rise={2.6} size={1.1} opacity={0.28} speed={1.3} run={running} />}
     </group>
@@ -459,6 +512,7 @@ function Boiler({ accent, running = true, detail = false }) {
       </mesh>
       <Handrail w={6.4} d={1.2} y0={4.26} h={1.0} />
       <Ladder pos={[-3.0, 0.5, 3.0]} height={3.7} />
+      <Greeble type="boiler" />
     </group>
   );
 }
@@ -517,6 +571,7 @@ function Pump({ accent, running = true, detail = false }) {
       <group position={[0.75, 1.9, 0]} rotation={[0, 0, Math.PI / 2]}><FlangeX r={0.42} thick={0.12} count={6} /></group>
       {/* gauge on the discharge */}
       <Gauge pos={[1.5, 3.4, 0.5]} rot={[0, 0.4, 0]} />
+      <Greeble type="pump" />
     </group>
   );
 }
@@ -557,6 +612,7 @@ function Generator({ accent, running = true, detail = false }) {
       ))}
       {/* spinning shaft-end fan (running indicator) */}
       <group position={[3.0, 2.2, 0]}><Fan r={1.05} blades={11} speed={12} run={running} /></group>
+      <Greeble type="generator" />
     </group>
   );
 }
@@ -579,6 +635,7 @@ function Skid({ accent, running = true, detail = false }) {
       {/* control cabinet */}
       <mesh position={[-1.6, 1.5, -1.0]} castShadow><boxGeometry args={[0.7, 1.4, 0.5]} /><meshStandardMaterial {...MAT.painted} /></mesh>
       <Gauge pos={[1.0, 2.9, 1.0]} />
+      <Greeble type="skid" />
     </group>
   );
 }

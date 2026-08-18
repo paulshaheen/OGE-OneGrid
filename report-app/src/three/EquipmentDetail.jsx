@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect, Suspense, Component } from 'react';
+import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Html, Environment, Line } from '@react-three/drei';
 import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
@@ -171,7 +172,7 @@ function Model({ asset, theme, anchors, active, onPick, snapshot }) {
   const g = useRef();
   const type = equipmentType(asset);
   const s = statusOf(asset?.status);
-  useFrame((st) => { if (g.current) g.current.rotation.y = -0.32 + Math.sin(st.clock.elapsedTime * 0.1) * 0.16; });
+  useFrame((st) => { if (g.current) g.current.rotation.y = -0.28 + Math.sin(st.clock.elapsedTime * 0.34) * 0.22; });
   // Lay labels out in two side columns (left/right of the model) so they never overlap;
   // each connects back to its component with a leader line. Classic exploded-callout look.
   const labelPos = useMemo(() => {
@@ -226,14 +227,16 @@ export function EquipmentDetail({ asset, theme, snapshot = {}, anomalies = [], r
       style={{ background: 'radial-gradient(120% 90% at 50% 18%, #243347 0%, #16202f 42%, #0c1420 72%, #070b12 100%)' }}>
       {/* subtle grid floor vibe */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(60% 40% at 50% 92%, rgba(120,150,200,.10), transparent 70%)' }} />
-      <Canvas shadows dpr={[1, 2]} camera={{ position: camPos, fov: 40 }} gl={{ antialias: true, alpha: true, toneMappingExposure: 1.08 }}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: camPos, fov: 40 }}
+        gl={{ antialias: true, alpha: true }}
+        onCreated={({ gl }) => { gl.toneMapping = THREE.AgXToneMapping; gl.toneMappingExposure = 0.95; }}>
         <hemisphereLight intensity={0.9} groundColor={'#141c2b'} color={'#eaf1ff'} />
         <directionalLight position={[9, 16, 8]} intensity={2.3} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0002} />
         <directionalLight position={[-10, 8, -6]} intensity={0.9} color={'#9db8ff'} />
         {/* dramatic accent rim keyed to health status */}
         <spotLight position={[-6, 9, 10]} angle={0.6} penumbra={0.8} intensity={1.4} color={s.color} distance={44} />
         <pointLight position={[8, 3, -8]} intensity={0.7} color={'#37e0d0'} />
-        <SafeB><Suspense fallback={null}><Environment preset={'warehouse'} /></Suspense></SafeB>
+        <SafeB><Suspense fallback={null}><Environment preset={'sunset'} environmentIntensity={1.1} /></Suspense></SafeB>
         <Model asset={asset} theme={theme} anchors={anchors} active={active} snapshot={snapshot}
           onPick={(a) => setActive((cur) => (cur === a.id ? null : a.id))} />
         <ContactShadows position={[0, 0.02, 0]} opacity={0.7} scale={30} blur={2.6} far={16} color={'#020509'} />

@@ -35,6 +35,28 @@ export function useApi(path, { pollMs = 0, deps = [] } = {}) {
   return { data, error, loading };
 }
 
+// Poll the backend liveness probe so the app can show a clear banner when the Fabric
+// capacity is paused (e.g. auto-paused outside operating hours) instead of blank values.
+export function useCapacityStatus(pollMs = 30000) {
+  const [status, setStatus] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const s = await getJson('/api/status');
+        if (alive) setStatus(s);
+      } catch {
+        // If even the probe endpoint is unreachable, assume the data plane is down/paused.
+        if (alive) setStatus({ ok: false, capacityPaused: true, message: 'Live data is unavailable — the Fabric capacity may be paused outside normal operating hours.' });
+      }
+    };
+    load();
+    const t = setInterval(load, pollMs);
+    return () => { alive = false; clearInterval(t); };
+  }, [pollMs]);
+  return status;
+}
+
 // Realtime WebSocket: subscribe to a set of tags, receive live values + fleet pulse.
 export function useRealtime() {
   const [connected, setConnected] = useState(false);

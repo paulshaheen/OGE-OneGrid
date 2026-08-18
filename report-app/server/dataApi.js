@@ -3,7 +3,7 @@
 //  Each function returns plain JSON the report front-ends consume. A tiny TTL
 //  cache keeps the demo snappy without hammering the capacity.
 // ---------------------------------------------------------------------------
-import { dax, dax1, kql, kqlMgmt } from './fabric.js';
+import { dax, dax1, kql, kqlMgmt, isCapacityPausedError, getCapacityState } from './fabric.js';
 import { resolveTarget } from './target.js';
 
 const cache = new Map();
@@ -18,6 +18,51 @@ async function cached(key, ttlMs, fn) {
 
 const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
 const T = () => resolveTarget();
+
+// Reject a slow probe so /api/status stays snappy even if a paused endpoint hangs.
+function withTimeout(promise, ms, label = 'probe timeout') {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error(label)), ms))]);
+}
+// Connection/5xx-style failures that also mean "the capacity isn't serving right now".
+function isLikelyUnavailable(msg) {
+  return /timeout|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|socket hang up|network|HTTP 5\d\d|HTTP 40[03]\b|service unavailable|bad gateway|gateway timeout/i.test(String(msg));
+}
+
+// Liveness probe: is the Fabric capacity actually serving queries right now?
+//  1) Authoritative — read the workspace's capacity state (Active vs Inactive/Paused).
+//  2) Fallback — a trivial DAX ping; any failure means the data plane isn't serving.
+// Cached briefly so polling clients don't hammer it.
+export async function status() {
+  return cached('status', 15_000, async () => {
+    const t = T();
+    const pausedMsg = 'Live data is available during operating hours, 8 AM–9 PM EST daily. The capacity is currently paused; readings resume automatically when it restarts.';
+    const inferMsg  = 'The Fabric capacity appears to be paused. Live data is available during operating hours, 8 AM–9 PM EST daily, and resumes automatically when the capacity restarts.';
+    if (!t.workspaceId || !t.datasetId) {
+      return { ok: false, configured: false, capacityPaused: false, message: 'No Fabric target is configured for this app.' };
+    }
+
+    // 1) Authoritative capacity-state check (works for any capacity/identity that can read it).
+    try {
+      const { state } = await withTimeout(getCapacityState(t.workspaceId), 15_000, 'capacity-state timeout');
+      if (state && !/^active$/i.test(state)) {
+        return { ok: false, capacityPaused: true, capacityState: state, message: pausedMsg };
+      }
+      if (state && /^active$/i.test(state)) {
+        return { ok: true, capacityPaused: false, capacityState: state };
+      }
+      // state null/unknown (identity can't read capacity state) -> fall through to the query probe.
+    } catch { /* fall through */ }
+
+    // 2) Fallback data probe. If it fails at all, the data plane isn't serving -> show the banner.
+    try {
+      await withTimeout(dax1(t.workspaceId, t.datasetId, 'EVALUATE ROW("ping", 1)'), 12_000);
+      return { ok: true, capacityPaused: false };
+    } catch (e) {
+      const detail = String((e && e.message) || e);
+      return { ok: false, capacityPaused: true, inferred: true, message: inferMsg, detail: detail.slice(0, 300) };
+    }
+  });
+}
 
 // ---- helpers to run DAX against the import model -------------------------
 function q(query) { const t = T(); return dax1(t.workspaceId, t.datasetId, query); }
