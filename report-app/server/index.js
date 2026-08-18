@@ -36,7 +36,7 @@ function json(res, code, obj) {
 async function handleApi(req, res, url) {
   const p = url.pathname;
   try {
-    if (p === '/api/health') return json(res, 200, { ok: true, target: resolveTarget() });
+    if (p === '/api/health') return json(res, 200, { ok: true, target: resolveTarget(), dataAgent: !!(process.env.DATA_AGENT_WORKSPACE && process.env.DATA_AGENT_ID) });
     if (p === '/api/status') return json(res, 200, await api.status());
     if (p === '/api/fleet-health') return json(res, 200, await api.fleetHealth());
     if (p === '/api/fleet-assets') return json(res, 200, await api.fleetAssets());
@@ -106,6 +106,13 @@ const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => proxyChat(req, res, Buffer.concat(chunks)));
+    return;
+  }
+  // Fabric Data Agent (MCP) proxy — same SSE forwarding as /api/chat.
+  if (url.pathname === '/api/ask-ontology' && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => proxyChat(req, res, Buffer.concat(chunks), '/api/ask-ontology'));
     return;
   }
   if (url.pathname === '/api/models' && req.method === 'GET') return proxyModels(req, res);

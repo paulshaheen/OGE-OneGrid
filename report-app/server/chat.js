@@ -64,13 +64,13 @@ export async function ensureAgent() {
   return starting;
 }
 
-export async function proxyChat(req, res, bodyBuf) {
+export async function proxyChat(req, res, bodyBuf, agentPath = '/api/chat') {
   const ok = await ensureAgent();
   if (!ok) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Chat agent is not available. Ensure `gh auth login` and `az login` are done.' }));
   }
-  const preq = http.request(new URL('/api/chat', CHAT_BASE), {
+  const preq = http.request(new URL(agentPath, CHAT_BASE), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyBuf) },
   }, (pres) => {

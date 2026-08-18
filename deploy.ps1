@@ -115,6 +115,11 @@ function FPost($path,$body){
   $b = if ($body -is [string]) { $body } else { $body | ConvertTo-Json -Depth 30 }
   Invoke-WebRequest -Uri "https://api.fabric.microsoft.com/v1/$path" -Method Post -Headers $h -Body ([Text.Encoding]::UTF8.GetBytes($b)) -UseBasicParsing
 }
+function FPatch($path,$body){
+  $h = @{ Authorization="Bearer $(FTok)"; "Content-Type"="application/json" }
+  $b = if ($body -is [string]) { $body } else { $body | ConvertTo-Json -Depth 30 }
+  Invoke-WebRequest -Uri "https://api.fabric.microsoft.com/v1/$path" -Method Patch -Headers $h -Body ([Text.Encoding]::UTF8.GetBytes($b)) -UseBasicParsing
+}
 # Poll a Fabric long-running-operation response; return the result body (if any).
 function FWait($resp){
   if ($resp.StatusCode -eq 201) { return ($resp.Content | ConvertFrom-Json) }
@@ -792,6 +797,82 @@ function Phase-Foundry {
   Log "  foundry endpoint = $($state.FoundryEndpoint)" "Green"
 }
 
+# ==================== PHASE: Fabric Data Agent (over ontology) ===============
+# Creates (idempotently), configures, and publishes a Fabric Data Agent that answers
+# natural-language questions grounded in the OneGrid semantic model. Consumed at runtime
+# by the chat app over the public MCP endpoint. All calls use the public data-agent REST
+# API, so no notebook/SDK dependency is required.
+function Phase-DataAgent {
+  Log "PHASE dataagent: Fabric Data Agent over the ontology"
+  $ws = $state.WorkspaceId
+  if (-not $ws) { Log "  no workspace id in state - run 'workspace' first" "Yellow"; return }
+
+  # Resolve the Import semantic model (semantic-main-import) as the grounding datasource.
+  $smId = $state.DatasetId
+  if (-not $smId) {
+    $smId = AzTry { ((FGet "workspaces/$ws/semanticModels").value | Where-Object { $_.displayName -eq 'semantic-main-import' } | Select-Object -First 1).id }
+  }
+  if (-not $smId) { Log "  semantic-main-import not found - run the 'semantic' phase first. Skipping." "Yellow"; return }
+
+  $name = if ($cfg.dataAgent -and $cfg.dataAgent.name) { $cfg.dataAgent.name } else { 'OneGridOntologyAgent' }
+  $desc = 'OneGrid Ontology Agent - NL queries over plant/unit/asset health, predictions and watchlist.'
+  $instr = @'
+You are the OneGrid Ontology Agent for Ironhart Energy. You answer natural-language questions about power-generation asset health by querying the OneGrid semantic model in Microsoft Fabric.
+
+Domain / ontology:
+- Plant -> Unit -> Asset (e.g., boilers, feed pumps, steam generators) -> Sensor/Tag (PI telemetry).
+- Facts: PI telemetry measurements, iCare measurements, AAKR health residuals, GADS outages, work requests.
+- Predictions: short-term stop risk (probability an asset trips in the next hours), long-term survival, anomaly advisories, root-cause.
+- A ranked watchlist highlights the highest-risk assets with a recommended action (MEDIUM/HIGH/CRITICAL).
+
+Guidance:
+- Prefer the modeled tables and their relationships.
+- When asked "what needs attention", rank by short-term stop probability or watchlist recommended_action severity.
+- Always name the specific Plant, Unit and Asset in answers, and cite the metric/value behind a recommendation.
+- Be concise and operational: tell the user which asset, why, and the recommended action. If data is missing, say so rather than guessing.
+'@
+
+  # 1) get-or-create the data agent by displayName
+  $agent = AzTry { (FGet "workspaces/$ws/dataAgents").value | Where-Object { $_.displayName -eq $name } | Select-Object -First 1 }
+  if (-not $agent) {
+    Log "  creating data agent '$name'..."
+    $agent = FWait (FPost "workspaces/$ws/dataAgents" @{ displayName=$name; description=$desc })
+  } else {
+    Log "  data agent '$name' exists ($($agent.id))"
+  }
+  $da = $agent.id
+  $state.DataAgentId = $da
+  $base = "workspaces/$ws/dataAgents/$da"
+
+  # 2) instructions
+  try { FPatch "$base/staging/settings" @{ aiInstructions=$instr } | Out-Null; Log "  instructions set" } catch { Log "  set instructions: $($_.Exception.Message)" "Yellow" }
+
+  # 3) attach the semantic model as a datasource (idempotent)
+  $already = AzTry { (Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/$base/staging/datasources" -Headers @{ Authorization="Bearer $(FTok)" }).value | Where-Object { $_.id -eq $smId } }
+  if (-not $already) {
+    Log "  adding semantic model datasource..."
+    try { FWait (FPost "$base/staging/datasources" @{ type='FabricItem'; itemReference=@{ itemId=$smId; workspaceId=$ws } }) | Out-Null }
+    catch { Log "  add datasource: $($_.Exception.Message)" "Yellow" }
+  } else { Log "  datasource already attached" }
+
+  # 4) select all tables so the agent can query them
+  try {
+    $els = (Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/$base/staging/datasources/$smId/elements" -Headers @{ Authorization="Bearer $(FTok)" }).value
+    $sel = 0
+    foreach ($el in $els) {
+      if ($el.type -ne 'Table') { continue }
+      try { FPatch "$base/staging/datasources/$smId/elements?id=$([uri]::EscapeDataString($el.id))" @{ isSelected=$true } | Out-Null; $sel++ } catch {}
+    }
+    Log "  selected $sel table(s)"
+  } catch { Log "  select tables: $($_.Exception.Message)" "Yellow" }
+
+  # 5) publish
+  try { FWait (FPost "$base/staging/publish" @{ publishedDescription=$desc }) | Out-Null; Log "  data agent published" "Green" }
+  catch { Log "  publish: $($_.Exception.Message)" "Yellow" }
+
+  Log "  data agent = $da (workspace $ws)" "Green"
+}
+
 # ============================ PHASE: chat agent ==============================
 function Phase-ChatAgent {
   Log "PHASE chatagent: container app"
@@ -822,6 +903,16 @@ function Phase-ChatAgent {
   }
   if ($datasetId) { $envVars += "PBI_DATASET=$datasetId" }
   else { Log "  WARNING: no Import model found - chat agent DAX will not work until PBI_DATASET is set (run the semantic phase first)" "Yellow" }
+
+  # Fabric Data Agent (published in the 'dataagent' phase) — enables the "Ask Fabric Data
+  # Agent" mode in the chat UI, consumed over the public MCP endpoint via the app identity.
+  $envVars += "DATA_AGENT_WORKSPACE=$($state.WorkspaceId)"
+  if ($state.DataAgentId) { $envVars += "DATA_AGENT_ID=$($state.DataAgentId)" }
+  else {
+    $daResolved = AzTry { ((FGet "workspaces/$($state.WorkspaceId)/dataAgents").value | Where-Object { $_.displayName -eq (if ($cfg.dataAgent -and $cfg.dataAgent.name) { $cfg.dataAgent.name } else { 'OneGridOntologyAgent' }) } | Select-Object -First 1).id }
+    if ($daResolved) { $envVars += "DATA_AGENT_ID=$daResolved" }
+    else { Log "  note: no published data agent found - 'Ask Fabric Data Agent' stays hidden until the 'dataagent' phase runs" "Yellow" }
+  }
 
   # ---- Build the FULL dashboard image via ACR, then create the app from that image.
   # We deliberately do NOT use 'az containerapp up --source': its build-log stream prints a
@@ -1380,6 +1471,7 @@ $phases = [ordered]@{
   oge         = { Phase-OGE }
   governance  = { Phase-Governance }
   foundry     = { Phase-Foundry }
+  dataagent   = { Phase-DataAgent }
   chatagent   = { Phase-ChatAgent }
   permissions = { Phase-Permissions }
 }

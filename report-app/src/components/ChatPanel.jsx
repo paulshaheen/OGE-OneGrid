@@ -83,6 +83,8 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
   const [activeProvider, setActiveProvider] = useState('foundry');
   const [tokenPrompt, setTokenPrompt] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
+  const [dataAgentAvailable, setDataAgentAvailable] = useState(false);
+  const [agentMode, setAgentMode] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('pm.chat.agentMode') === '1'));
   const scrollRef = useRef(null);
   const persona = PERSONA_MAP[pagePersona] || 'analyst';
   const dark = theme.mode !== 'light';
@@ -105,6 +107,10 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
     }).catch(() => {});
   }, [provider, copilotToken]);
   const chooseModel = (id) => { setModel(id); try { localStorage.setItem('pm.chat.model', id); } catch { /* ignore */ } setModelOpen(false); };
+  useEffect(() => {
+    fetch('/api/health').then((r) => r.json()).then((d) => setDataAgentAvailable(!!d.dataAgent)).catch(() => {});
+  }, []);
+  const toggleAgentMode = () => setAgentMode((v) => { const n = !v; try { localStorage.setItem('pm.chat.agentMode', n ? '1' : '0'); } catch { /* ignore */ } return n; });
   const switchProvider = (p) => {
     if (p === 'copilot' && !providers.copilot && !copilotToken) { setTokenPrompt(true); return; }
     setProvider(p); try { localStorage.setItem('pm.chat.provider', p); } catch { /* ignore */ }
@@ -134,16 +140,22 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
     const history = msgs.map((m) => ({ role: m.role, content: m.content })).slice(-10);
     setMsgs((m) => [...m, { role: 'user', content: message }]);
     setBusy(true); setStatus('Thinking…');
+    const useAgent = agentMode && dataAgentAvailable;
     const context = activeFocus ? {
       kind: activeFocus.kind, asset_id: activeFocus.asset_id, name: activeFocus.name,
       plant: activeFocus.plant, unit: activeFocus.unit, category: activeFocus.category,
       status: activeFocus.status, running_tag: activeFocus.running_tag,
     } : undefined;
     try {
-      const resp = await fetch('/api/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history, persona, context, model: model || undefined, provider: provider || undefined, copilotToken: copilotToken || undefined }),
-      });
+      const resp = useAgent
+        ? await fetch('/api/ask-ontology', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+          })
+        : await fetch('/api/chat', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, history, persona, context, model: model || undefined, provider: provider || undefined, copilotToken: copilotToken || undefined }),
+          });
       const reader = resp.body.getReader();
       const dec = new TextDecoder();
       let buf = '', final = null;
@@ -258,6 +270,15 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
                     </div>
                     {onCopilot && copilotToken && <button onClick={clearCopilot} className="text-[9px] hover:opacity-80" style={{ color: sub }} title="Disconnect your Copilot token">disconnect</button>}
                   </div>
+                  {dataAgentAvailable && (
+                    <button onClick={toggleAgentMode}
+                      className="flex items-center gap-1.5 mt-1 text-[10px] font-bold rounded-md px-2 py-0.5 transition"
+                      style={agentMode ? { background: theme.accent, color: dark ? '#06121f' : '#fff' } : { color: sub, border: `1px solid ${border}` }}
+                      title="Answer directly from the published Fabric Data Agent, grounded in the OneGrid semantic model">
+                      <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 6c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3zm0 0v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      Fabric Data Agent {agentMode ? 'on' : 'off'}
+                    </button>
+                  )}
                   {tokenPrompt && (
                     <div className="mt-1.5 p-2 rounded-lg" style={{ background: surface, border: `1px solid ${border}` }}>
                       <div className="text-[10px] mb-1 leading-snug" style={{ color: sub }}>Paste a GitHub token with Copilot access to use your own license. It stays in your browser and is only forwarded to power your Copilot requests.</div>

@@ -7,6 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { askDataAgent } = require('./mcp');
 
 const PORT = process.env.PORT || 3456;
 // Corporate proxy uses self-signed certs locally. In Azure App Service
@@ -24,6 +25,11 @@ const CONFIG = {
     kustoDb: process.env.KUSTO_DATABASE || 'pi-realtime-db',
     pbiWorkspace: process.env.PBI_WORKSPACE || '',
     pbiDataset: process.env.PBI_DATASET || '',
+    // Fabric Data Agent (published) — consumed over its MCP endpoint for NL queries
+    // grounded in the OneGrid ontology / semantic model.
+    dataAgentWorkspace: process.env.DATA_AGENT_WORKSPACE || process.env.PBI_WORKSPACE || '',
+    dataAgentId: process.env.DATA_AGENT_ID || '',
+    fabricApiBase: (process.env.FABRIC_API_BASE || 'https://api.fabric.microsoft.com').replace(/\/$/, ''),
     copilotModel: process.env.COPILOT_MODEL || 'gpt-4o'
 };
 
@@ -860,7 +866,7 @@ const server = http.createServer(async (req, res) => {
     // Health probe for App Service / Container Apps
     if (req.method === 'GET' && (req.url === '/healthz' || req.url === '/api/health')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', provider: AI.provider, defaultModel: AI.provider === 'foundry' ? AI.defaultModel : CONFIG.copilotModel }));
+        res.end(JSON.stringify({ status: 'ok', provider: AI.provider, defaultModel: AI.provider === 'foundry' ? AI.defaultModel : CONFIG.copilotModel, dataAgent: !!(CONFIG.dataAgentWorkspace && CONFIG.dataAgentId) }));
         return;
     }
 
@@ -908,6 +914,44 @@ const server = http.createServer(async (req, res) => {
             } catch (e) {
                 console.error('Chat error:', e.message);
                 res.write(`data: ${JSON.stringify({ type: 'done', reply: `Error: ${e.message}`, queries: [], toolCalls: 0 })}\n\n`);
+                res.end();
+            }
+        });
+        return;
+    }
+
+    // Fabric Data Agent — natural-language query over the OneGrid ontology via MCP.
+    // Streams SSE using the same envelope as /api/chat so the UI can reuse rendering.
+    if (req.method === 'POST' && req.url === '/api/ask-ontology') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            res.writeHead(200, {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': '*'
+            });
+            const sendStatus = (status) => res.write(`data: ${JSON.stringify({ type: 'status', status })}\n\n`);
+            try {
+                if (body.charCodeAt(0) === 0xFEFF) body = body.slice(1);
+                const { message } = JSON.parse(body.trim());
+                if (!CONFIG.dataAgentWorkspace || !CONFIG.dataAgentId) {
+                    throw new Error('Fabric Data Agent is not configured (DATA_AGENT_WORKSPACE / DATA_AGENT_ID).');
+                }
+                if (!message || !String(message).trim()) throw new Error('Empty question.');
+
+                const url = `${CONFIG.fabricApiBase}/v1/mcp/workspaces/${CONFIG.dataAgentWorkspace}/dataagents/${CONFIG.dataAgentId}/agent`;
+                const token = await getToken('https://api.fabric.microsoft.com');
+                const { text, tool } = await askDataAgent({
+                    url, token, question: String(message),
+                    timeoutMs: 150000, onStatus: sendStatus,
+                });
+                res.write(`data: ${JSON.stringify({ type: 'done', reply: text || 'No answer returned.', source: 'fabric-data-agent', tool, queries: [], toolCalls: 1 })}\n\n`);
+                res.end();
+            } catch (e) {
+                console.error('Ontology agent error:', e.message);
+                res.write(`data: ${JSON.stringify({ type: 'done', reply: `Fabric Data Agent error: ${e.message}`, source: 'fabric-data-agent', queries: [], toolCalls: 0 })}\n\n`);
                 res.end();
             }
         });
