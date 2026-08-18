@@ -46,8 +46,9 @@ export function useCapacityStatus(pollMs = 30000) {
         const s = await getJson('/api/status');
         if (alive) setStatus(s);
       } catch {
-        // If even the probe endpoint is unreachable, assume the data plane is down/paused.
-        if (alive) setStatus({ ok: false, capacityPaused: true, message: 'Live data is unavailable — the Fabric capacity may be paused outside normal operating hours.' });
+        // If even the probe endpoint is unreachable, the backend/data plane is down — surface a
+        // neutral connection notice rather than falsely claiming the capacity is paused.
+        if (alive) setStatus({ ok: false, connectionError: true, capacityPaused: false, message: 'Live data is unavailable — the app backend could not be reached.' });
       }
     };
     load();

@@ -12,6 +12,7 @@ import { resolveTarget } from './target.js';
 import { proxyChat, proxyModels, warmAgent } from './chat.js';
 import { isCapacityPausedError } from './fabric.js';
 import * as api from './dataApi.js';
+import * as gov from './governance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(__dirname, '..', 'dist');
@@ -49,6 +50,20 @@ async function handleApi(req, res, url) {
     if (p.startsWith('/api/asset-workorders/')) return json(res, 200, await api.assetWorkOrders(decodeURIComponent(p.split('/api/asset-workorders/')[1])));
     if (p === '/api/narrative') return json(res, 200, await api.narrative());
     if (p === '/api/ontology') return json(res, 200, loadOntology());
+    // ── Governance / OneLake-security review plane (read-only) ──────────────
+    if (p.startsWith('/api/governance/')) {
+      if (!gov.isAuthorized(req)) return json(res, 403, { error: 'forbidden: Governance.Reader required' });
+      const sub = p.slice('/api/governance/'.length);
+      if (sub === 'posture') return json(res, 200, await gov.posture());
+      if (sub === 'principals') return json(res, 200, await gov.principals());
+      if (sub === 'resources') return json(res, 200, await gov.resources());
+      if (sub === 'changes') return json(res, 200, await gov.changes());
+      if (sub === 'tests') return json(res, 200, await gov.tests());
+      if (sub === 'explain') return json(res, 200, await gov.explain(url.searchParams.get('principal'), url.searchParams.get('resource')));
+      if (sub.startsWith('principals/')) return json(res, 200, await gov.principalAccess(decodeURIComponent(sub.slice('principals/'.length))));
+      if (sub.startsWith('resources/')) return json(res, 200, await gov.resourcePrincipals(decodeURIComponent(sub.slice('resources/'.length))));
+      return json(res, 404, { error: 'unknown governance endpoint' });
+    }
     if (p === '/api/realtime-pulse') return json(res, 200, await api.realtimePulse());
     if (p.startsWith('/api/asset/')) return json(res, 200, await api.assetDetail(decodeURIComponent(p.split('/api/asset/')[1])));
     if (p === '/api/tag-values') {
@@ -75,7 +90,11 @@ function serveStatic(req, res, url) {
   if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST, 'index.html');
   if (!fs.existsSync(file)) { res.writeHead(404); return res.end('build not found - run: npm run build'); }
   const ext = path.extname(file).toLowerCase();
-  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+  // Content-hashed assets under /assets can be cached forever; index.html (and the SPA
+  // fallback) must always revalidate so a new build is picked up without a hard refresh.
+  const isHashedAsset = /[\\/]assets[\\/]/.test(file) && ext !== '.html';
+  const cache = isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache, no-store, must-revalidate';
+  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cache });
   fs.createReadStream(file).pipe(res);
 }
 

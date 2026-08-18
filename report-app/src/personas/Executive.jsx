@@ -7,8 +7,9 @@ import { BriefingBar } from '../components/Briefing.jsx';
 import { SectionTitle, Spinner, Pill } from '../components/ui.jsx';
 import { Sunburst } from '../components/charts.jsx';
 import { OutagesModal, PredictionsModal } from '../components/DetailModals.jsx';
+import { GovernanceBadge } from './Governance.jsx';
 
-export default function Executive({ theme, onNavigate }) {
+export default function Executive({ theme, onNavigate, onOpenGovernance }) {
   const { data: health } = useApi('/api/fleet-health', { pollMs: 60000 });
   const { data: assets } = useApi('/api/fleet-assets', { pollMs: 60000 });
   const { data: narrative } = useApi('/api/narrative');
@@ -26,14 +27,18 @@ export default function Executive({ theme, onNavigate }) {
   const atRisk = preds?.counts?.atRisk;
 
   return (
-    <div className="h-full overflow-y-auto px-5 sm:px-8 lg:px-12 py-6 max-w-[1500px] mx-auto">
-      <div className="mb-6"><BriefingBar theme={theme} narrative={narrative} /></div>
+    <div className="h-full flex flex-col overflow-hidden px-5 sm:px-8 lg:px-12 py-4 max-w-[1500px] mx-auto">
+      <div className="mb-3 shrink-0"><BriefingBar theme={theme} narrative={narrative} /></div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
-        <div data-tour="sundial" className={`lg:col-span-4 ${theme.panel} p-5 flex flex-col items-center justify-center`}>
+      {onOpenGovernance && (
+        <div className="mb-3 shrink-0"><GovernanceBadge theme={theme} onOpen={onOpenGovernance} /></div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-3 shrink-0">
+        <div data-tour="sundial" className={`lg:col-span-4 ${theme.panel} p-4 flex flex-col items-center justify-center`}>
           <SectionTitle theme={theme} right={<span className={`text-[11px] ${theme.sub}`}>click to drill</span>}>Fleet Health</SectionTitle>
           {!assets ? <Spinner theme={theme} /> : (
-            <Sunburst theme={theme} assets={assets} size={250}
+            <Sunburst theme={theme} assets={assets} size={200}
               centerValue={h.health ? `${Math.round(h.health.avg)}%` : '-'} centerLabel="Fleet Health"
               onAsset={(a) => setAsset(a)} />
           )}
@@ -56,12 +61,14 @@ export default function Executive({ theme, onNavigate }) {
         </div>
       </div>
 
-      <div className={`${theme.panel} p-5`}>
-        <SectionTitle theme={theme} right={<span className={`text-xs ${theme.sub}`}>critical only - click for detail</span>}>Priority Watch - where to focus</SectionTitle>
+      <div className={`${theme.panel} p-4 flex-1 min-h-0 flex flex-col`}>
+        <div className="shrink-0">
+          <SectionTitle theme={theme} right={<span className={`text-xs ${theme.sub}`}>critical only - click for detail</span>}>Priority Watch - where to focus</SectionTitle>
+        </div>
         {!assets ? <Spinner theme={theme} /> : criticalAssets.length === 0 ? (
           <div className={`text-sm ${theme.sub} py-8 text-center`}>No critical assets - fleet is stable.</div>
         ) : (
-          <div className="space-y-2">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
             {rankAssets(criticalAssets).map((a) => {
               const s = statusOf(a.status);
               const disp = a.score ?? a.health;

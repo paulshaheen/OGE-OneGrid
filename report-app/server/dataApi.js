@@ -53,13 +53,19 @@ export async function status() {
       // state null/unknown (identity can't read capacity state) -> fall through to the query probe.
     } catch { /* fall through */ }
 
-    // 2) Fallback data probe. If it fails at all, the data plane isn't serving -> show the banner.
+    // 2) Fallback data probe. Distinguish a genuinely paused/unavailable capacity from an
+    // unrelated failure (no sign-in, expired token, missing permission, stale/wrong target,
+    // network) — only the former should surface the "capacity paused" banner.
     try {
       await withTimeout(dax1(t.workspaceId, t.datasetId, 'EVALUATE ROW("ping", 1)'), 12_000);
       return { ok: true, capacityPaused: false };
     } catch (e) {
       const detail = String((e && e.message) || e);
-      return { ok: false, capacityPaused: true, inferred: true, message: inferMsg, detail: detail.slice(0, 300) };
+      if (isCapacityPausedError(e)) {
+        return { ok: false, capacityPaused: true, inferred: true, message: inferMsg, detail: detail.slice(0, 300) };
+      }
+      // Not a paused capacity — don't show the misleading "paused" banner.
+      return { ok: false, capacityPaused: false, connectionError: true, message: 'Live data is currently unavailable — the app could not query the semantic model. Check that a valid Fabric target is configured and the identity has access.', detail: detail.slice(0, 300) };
     }
   });
 }
