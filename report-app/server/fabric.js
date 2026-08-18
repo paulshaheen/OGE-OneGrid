@@ -96,6 +96,45 @@ async function withToken(resource, fn) {
   }
 }
 
+// Plain GET returning parsed JSON (used for Fabric control-plane reads like capacity state).
+function httpGet(url, token) {
+  const u = new URL(url);
+  const opts = { method: 'GET', hostname: u.hostname, path: u.pathname + u.search, headers: { Authorization: 'Bearer ' + token } };
+  return new Promise((resolve, reject) => {
+    const req = https.request(opts, (res) => {
+      let out = '';
+      res.on('data', (c) => (out += c));
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try { resolve(JSON.parse(out)); } catch (e) { reject(new Error('bad json: ' + out.slice(0, 200))); }
+        } else reject(new Error(`HTTP ${res.statusCode}: ${out.slice(0, 300)}`));
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+// Authoritative paused-capacity signal: resolve the workspace's capacity and read its state.
+// Fabric returns "Active" when running and "Inactive" (or Paused/Suspended) when paused.
+// Returns { state, capacityId } — state is null when it can't be read (permissions/unknown).
+export async function getCapacityState(workspaceId) {
+  if (!workspaceId) return { state: null };
+  return withToken(RES_FABRIC, async (token) => {
+    let capacityId = null;
+    try {
+      const ws = await httpGet(`${RES_FABRIC}/v1/workspaces/${workspaceId}`, token);
+      capacityId = ws.capacityId || null;
+    } catch (e) { return { state: null, error: String((e && e.message) || e) }; }
+    if (!capacityId) return { state: null };
+    try {
+      const list = await httpGet(`${RES_FABRIC}/v1/capacities`, token);
+      const c = (list.value || []).find((x) => x.id === capacityId);
+      return { state: c ? c.state : null, capacityId };
+    } catch (e) { return { state: null, capacityId, error: String((e && e.message) || e) }; }
+  });
+}
+
 function postJson(url, token, body) {
   const data = Buffer.from(JSON.stringify(body));
   const u = new URL(url);

@@ -3,7 +3,7 @@
 //  Each function returns plain JSON the report front-ends consume. A tiny TTL
 //  cache keeps the demo snappy without hammering the capacity.
 // ---------------------------------------------------------------------------
-import { dax, dax1, kql, kqlMgmt, isCapacityPausedError } from './fabric.js';
+import { dax, dax1, kql, kqlMgmt, isCapacityPausedError, getCapacityState } from './fabric.js';
 import { resolveTarget } from './target.js';
 
 const cache = new Map();
@@ -28,29 +28,37 @@ function isLikelyUnavailable(msg) {
   return /timeout|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|socket hang up|network|HTTP 5\d\d|HTTP 40[03]\b|service unavailable|bad gateway|gateway timeout/i.test(String(msg));
 }
 
-// Liveness probe: is the Fabric capacity actually serving queries right now? Runs a trivial
-// DAX ping (the Power BI endpoint answers fast even when the capacity is paused — it returns
-// an error rather than hanging). Cached briefly so polling clients don't hammer it.
+// Liveness probe: is the Fabric capacity actually serving queries right now?
+//  1) Authoritative — read the workspace's capacity state (Active vs Inactive/Paused).
+//  2) Fallback — a trivial DAX ping; any failure means the data plane isn't serving.
+// Cached briefly so polling clients don't hammer it.
 export async function status() {
   return cached('status', 15_000, async () => {
     const t = T();
+    const pausedMsg = 'The Fabric capacity is paused — live data is unavailable outside normal operating hours. Readings resume automatically when the capacity restarts.';
     if (!t.workspaceId || !t.datasetId) {
       return { ok: false, configured: false, capacityPaused: false, message: 'No Fabric target is configured for this app.' };
     }
+
+    // 1) Authoritative capacity-state check (when readable).
+    try {
+      const { state } = await withTimeout(getCapacityState(t.workspaceId), 8_000, 'capacity-state timeout');
+      if (state && !/^active$/i.test(state)) {
+        return { ok: false, capacityPaused: true, capacityState: state, message: pausedMsg };
+      }
+      if (state && /^active$/i.test(state)) {
+        return { ok: true, capacityPaused: false, capacityState: state };
+      }
+      // state null/unknown -> fall through to the query probe.
+    } catch { /* fall through */ }
+
+    // 2) Fallback data probe. If it fails at all, the data plane isn't serving -> show the banner.
     try {
       await withTimeout(dax1(t.workspaceId, t.datasetId, 'EVALUATE ROW("ping", 1)'), 12_000);
       return { ok: true, capacityPaused: false };
     } catch (e) {
       const detail = String((e && e.message) || e);
-      const paused = isCapacityPausedError(e) || isLikelyUnavailable(detail);
-      return {
-        ok: false,
-        capacityPaused: paused,
-        message: paused
-          ? 'The Fabric capacity is paused — live data is unavailable outside normal operating hours. Readings resume automatically when the capacity restarts.'
-          : 'Live data is temporarily unavailable.',
-        detail: detail.slice(0, 300),
-      };
+      return { ok: false, capacityPaused: true, message: pausedMsg, detail: detail.slice(0, 300) };
     }
   });
 }
