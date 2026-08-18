@@ -47,6 +47,8 @@ const ORDER = { pump: 0, boiler: 1, turbine: 2, generator: 3, skid: 4 };
 const CONNECT_LABEL = { 'pump-boiler': 'feedwater', 'boiler-turbine': 'steam', 'turbine-generator': 'shaft', 'pump-turbine': 'feedwater' };
 // Canonical operating train + friendly names for modeled (not-instrumented) fill-ins.
 const TRAIN = ['pump', 'boiler', 'turbine', 'generator'];
+// Turbine + generator sit on an elevated turbine deck (condenser hangs below); boiler & BFP stay at grade.
+const DECK_Y = 4;
 const GHOST_NAME = { pump: 'Boiler Feed Pump', boiler: 'Boiler', turbine: 'Steam Turbine', generator: 'Generator' };
 const GHOST = '#64748b';
 
@@ -129,7 +131,12 @@ function InteriorAsset({ node, theme, selected, hovered, onSelect, onHover, valu
   const liveMw = node.isGen && node.mwTag ? values?.[node.mwTag]?.value : undefined;
   const mw = node.isGen ? (liveMw != null ? liveMw : Math.round(((node.health ?? 92) / 100) * 260)) : undefined;
   const baseScale = ghost ? 0.46 : 0.52;
-  useFrame(() => { if (ref.current) { const target = isSel ? 0.62 : hovered === node.id ? 0.58 : baseScale; ref.current.scale.setScalar(THREE.MathUtils.lerp(ref.current.scale.x, target, 0.15)); } });
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    const target = isSel ? 0.62 : hovered === node.id ? 0.58 : baseScale;
+    ref.current.scale.setScalar(THREE.MathUtils.lerp(ref.current.scale.x, target, 0.15));
+    ref.current.rotation.y += (delta || 0.016) * 0.55; // continuous turntable (~2x the detail-view sway)
+  });
   return (
     <group position={node.pos}>
       <mesh position={[0, 2, 0]} visible={false}
@@ -141,7 +148,7 @@ function InteriorAsset({ node, theme, selected, hovered, onSelect, onHover, valu
       <group ref={ref} scale={baseScale}><EquipmentGeometry type={type} accent={s.color} running={!ghost} detail={false} /></group>
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.05, 0]}><ringGeometry args={[3.6, 4.0, 48]} /><meshBasicMaterial color={s.color} transparent opacity={ghost ? 0.22 : isHot ? 0.8 : 0.4} toneMapped={false} /></mesh>
       {isHot && <mesh position={[0, 5.4, 0]}><sphereGeometry args={[0.22, 16, 16]} /><meshBasicMaterial color={s.color} toneMapped={false} /></mesh>}
-      {node.isGen && <Transmission mw={mw} live={liveMw != null} accent={theme.accent} />}
+      {node.isGen && <group position={[0, -(node.pos?.[1] || 0), 0]}><Transmission mw={mw} live={liveMw != null} accent={theme.accent} /></group>}
       <Html position={[0, isSel || hovered === node.id ? 6.0 : 5.2, 0]} center distanceFactor={26} zIndexRange={[20, 0]}>
         <div className="px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap"
           style={{ background: 'rgba(8,12,20,.82)', color: ghost ? '#9aa7b8' : isSel || hovered === node.id ? s.color : '#cdd8e6', border: `1px solid ${s.color}${isSel ? 'aa' : ghost ? '33' : '44'}`, boxShadow: isSel ? `0 0 16px ${s.glow}` : 'none', borderStyle: ghost ? 'dashed' : 'solid', opacity: ghost ? 0.9 : 1 }}>
@@ -159,8 +166,9 @@ function InteriorAsset({ node, theme, selected, hovered, onSelect, onHover, valu
 // end-to-end. Real assets stay full-colour, clickable and live.
 function interiorLayout(plant) {
   const units = plant?.unitList || [];
-  const rows = [], connectors = [], labels = [], pads = [];
+  const rows = [], connectors = [], labels = [], pads = [], structures = [];
   const rowGap = 30;
+  const onDeck = (t) => t === 'turbine' || t === 'generator';
   units.forEach((u, ui) => {
     const z = (ui - (units.length - 1) / 2) * rowGap;
     const byType = {};
@@ -172,21 +180,24 @@ function interiorLayout(plant) {
       return { kind: 'ghost', ghost: true, isGen, id: `${u.name}_${type}`, name: `${u.name} ${GHOST_NAME[type]}`, plant: plant.name, unit: u.name, status: 'modeled', type, mwTag: isGen ? deriveMwTag(u.name) : null };
     });
     const gap = 12, n = nodes.length;
-    nodes.forEach((nd, i) => { nd.pos = [(i - (n - 1) / 2) * gap, 0, z]; });
+    nodes.forEach((nd, i) => { nd.pos = [(i - (n - 1) / 2) * gap, onDeck(nd.type) ? DECK_Y : 0, z]; });
     rows.push(...nodes);
+    const cy = (nd) => (onDeck(nd.type) ? DECK_Y + 0.4 : 1.6);
     for (let i = 0; i < nodes.length - 1; i++) {
       const k = `${nodes[i].type}-${nodes[i + 1].type}`;
       const ghost = nodes[i].ghost || nodes[i + 1].ghost;
-      connectors.push({ from: [nodes[i].pos[0] + 2.4, 1.6, z], to: [nodes[i + 1].pos[0] - 2.4, 1.6, z], kind: k, id: `${u.name}-c${i}`, ghost });
+      connectors.push({ from: [nodes[i].pos[0] + 2.4, cy(nodes[i]), z], to: [nodes[i + 1].pos[0] - 2.4, cy(nodes[i + 1]), z], kind: k, id: `${u.name}-c${i}`, ghost });
       const lbl = CONNECT_LABEL[k];
-      if (lbl) labels.push({ id: `${u.name}-l${i}`, pos: [(nodes[i].pos[0] + nodes[i + 1].pos[0]) / 2, 3.2, z], text: lbl, ghost });
+      if (lbl) labels.push({ id: `${u.name}-l${i}`, pos: [(nodes[i].pos[0] + nodes[i + 1].pos[0]) / 2, Math.max(cy(nodes[i]), cy(nodes[i + 1])) + 1.4, z], text: lbl, ghost });
     }
     const xs = nodes.map((nd) => nd.pos[0]);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
     pads.push({ id: u.name, z, x0: minX - 7, x1: maxX + 34, status: u.status });
     labels.push({ id: `${u.name}-unit`, pos: [minX - 8.5, 0.4, z], text: u.name, unit: true, status: u.status });
+    const xOf = (t) => nodes.find((nd) => nd.type === t)?.pos[0];
+    structures.push({ unit: u.name, z, status: u.status, pumpX: xOf('pump') ?? minX, boilerX: xOf('boiler') ?? minX, turbineX: xOf('turbine') ?? 0, generatorX: xOf('generator') ?? maxX });
   });
-  return { rows, connectors, labels, pads };
+  return { rows, connectors, labels, pads, structures };
 }
 
 // ── Camera rig: eases to a goal only right after a transition, then hands the
@@ -354,31 +365,207 @@ function SceneMap({ plants, theme, hovered, onHover, onEnter }) {
   );
 }
 
+// A tall area-light pole with a warm sodium-vapor lamp — sells the dusk/industrial mood.
+function Lamp({ x, z, h = 15, color = '#ffd39a' }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, h / 2, 0]}><cylinderGeometry args={[0.13, 0.2, h, 8]} /><meshStandardMaterial color="#39414f" metalness={0.6} roughness={0.5} /></mesh>
+      {/* fixture housing (shade) */}
+      <mesh position={[0, h + 0.18, 0]}><cylinderGeometry args={[0.55, 0.32, 0.42, 14]} /><meshStandardMaterial color="#232932" metalness={0.6} roughness={0.5} /></mesh>
+      {/* small bright emitter — the soft halo comes from post-process bloom, not fake spheres */}
+      <mesh position={[0, h - 0.05, 0]}><sphereGeometry args={[0.24, 16, 16]} /><meshBasicMaterial color={'#fff0cf'} toneMapped={false} /></mesh>
+      <pointLight position={[0, h - 0.3, 0]} color={color} intensity={3.8} distance={56} decay={2} />
+    </group>
+  );
+}
+
+// Per-unit plant architecture: a tall boiler house + stack, an elevated turbine deck with the
+// condenser slung beneath it, and an open turbine-hall canopy. Placed around the (already laid
+// out) equipment so the boiler reads multi-story and the TG train sits on a real deck.
+function UnitStructures({ s }) {
+  const { z, boilerX, turbineX, generatorX } = s;
+  const frame = '#3b4652', clad = '#333d4a';
+  const deckMidX = (turbineX + generatorX) / 2;
+  const deckW = Math.abs(generatorX - turbineX) + 12;
+  const colH = DECK_Y - 0.6;
+  return (
+    <group>
+      {/* ---- Boiler house: open steel framework, boiler drum + stack ---- */}
+      <group position={[boilerX, 0, z]}>
+        {/* corner columns */}
+        {[[-4, -4], [4, -4], [-4, 4], [4, 4]].map(([dx, dz], i) => (
+          <mesh key={`c${i}`} position={[dx, 10, dz]}><boxGeometry args={[0.5, 20, 0.5]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.5} /></mesh>
+        ))}
+        {/* horizontal ring girders at 4 floors */}
+        {[4, 9, 14, 19].map((y, i) => (
+          <group key={`r${i}`} position={[0, y, 0]}>
+            <mesh position={[0, 0, -4]}><boxGeometry args={[8.3, 0.3, 0.3]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.5} /></mesh>
+            <mesh position={[0, 0, 4]}><boxGeometry args={[8.3, 0.3, 0.3]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.5} /></mesh>
+            <mesh position={[-4, 0, 0]}><boxGeometry args={[0.3, 0.3, 8.3]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.5} /></mesh>
+            <mesh position={[4, 0, 0]}><boxGeometry args={[0.3, 0.3, 8.3]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.5} /></mesh>
+          </group>
+        ))}
+        {/* thin cladding on the back + far side only, so the interior stays visible */}
+        <mesh position={[0, 11, -4]}><boxGeometry args={[8, 18, 0.15]} /><meshStandardMaterial color={clad} metalness={0.5} roughness={0.6} /></mesh>
+        <mesh position={[-4, 11, 0]}><boxGeometry args={[0.15, 18, 8]} /><meshStandardMaterial color={clad} metalness={0.5} roughness={0.6} /></mesh>
+        <mesh position={[0, 20.2, 0]}><boxGeometry args={[8.7, 0.4, 8.7]} /><meshStandardMaterial color="#242b34" metalness={0.5} roughness={0.6} /></mesh>
+        {/* steam drum high in the structure — reads as an actual boiler */}
+        <mesh position={[0, 16.5, 0]} rotation-z={Math.PI / 2}><cylinderGeometry args={[1.6, 1.6, 6, 18]} /><meshStandardMaterial color="#4a5460" metalness={0.55} roughness={0.45} /></mesh>
+        {/* downcomer / riser tubes */}
+        {[-1.4, 0, 1.4].map((dx, i) => (
+          <mesh key={`t${i}`} position={[dx, 9, -1.2]}><cylinderGeometry args={[0.16, 0.16, 14, 8]} /><meshStandardMaterial color="#39424d" metalness={0.5} roughness={0.5} /></mesh>
+        ))}
+        {/* subtle furnace ember at the base (warm light, not a fake orange panel) */}
+        <pointLight position={[0, 2, 0]} color={'#ff7a2a'} intensity={1.6} distance={13} decay={2} />
+        {/* stack */}
+        <mesh position={[3.4, 24, -2.4]}><cylinderGeometry args={[0.85, 1.1, 20, 16]} /><meshStandardMaterial color="#3a3f47" metalness={0.5} roughness={0.6} /></mesh>
+        <mesh position={[3.4, 34.2, -2.4]}><cylinderGeometry args={[0.92, 0.92, 0.7, 16]} /><meshStandardMaterial color="#e0553a" emissive="#e0553a" emissiveIntensity={0.55} toneMapped={false} /></mesh>
+      </group>
+
+      {/* ---- Turbine deck + condenser (hung below the deck) ---- */}
+      <group position={[deckMidX, 0, z]}>
+        <mesh position={[0, DECK_Y - 0.3, 0]} receiveShadow castShadow><boxGeometry args={[deckW, 0.6, 12]} /><meshStandardMaterial color="#4a5460" metalness={0.3} roughness={0.75} /></mesh>
+        {[-deckW / 2 + 1.5, -deckW / 6, deckW / 6, deckW / 2 - 1.5].map((dx, i) => [-4.6, 4.6].map((dz, j) => (
+          <mesh key={`${i}-${j}`} position={[dx, colH / 2, dz]}><boxGeometry args={[0.5, colH, 0.5]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.55} /></mesh>
+        )))}
+        {/* condenser slung beneath the turbine end */}
+        <group position={[turbineX - deckMidX, 0, 0]}>
+          <mesh position={[0, (DECK_Y - 0.8) / 2, 0]}><boxGeometry args={[7, DECK_Y - 0.8, 7]} /><meshStandardMaterial color="#37454f" metalness={0.5} roughness={0.5} /></mesh>
+          <mesh position={[0, (DECK_Y - 0.8) / 2, 3.6]}><planeGeometry args={[6, 1.6]} /><meshBasicMaterial color="#2ac0d0" toneMapped={false} transparent opacity={0.32} /></mesh>
+        </group>
+      </group>
+
+      {/* ---- Turbine-hall canopy (open sides so the TG train stays visible) ---- */}
+      <group position={[deckMidX, 0, z]}>
+        {[[-deckW / 2, -6], [deckW / 2, -6], [-deckW / 2, 6], [deckW / 2, 6]].map(([dx, dz], i) => (
+          <mesh key={i} position={[dx, DECK_Y + 6, dz]}><boxGeometry args={[0.45, 12, 0.45]} /><meshStandardMaterial color={frame} metalness={0.7} roughness={0.55} /></mesh>
+        ))}
+        <mesh position={[0, DECK_Y + 12.1, 0]}><boxGeometry args={[deckW + 1, 0.4, 13]} /><meshStandardMaterial color="#20272f" metalness={0.5} roughness={0.6} /></mesh>
+      </group>
+
+      {/* overhead floods illuminating the whole unit */}
+      <pointLight position={[boilerX, 34, z]} intensity={4.2} distance={120} decay={2} color={'#fff1d8'} />
+      <pointLight position={[(turbineX + generatorX) / 2, 30, z]} intensity={3.6} distance={110} decay={2} color={'#fff1d8'} />
+      <Lamp x={boilerX - 12} z={z - 9} />
+      <Lamp x={generatorX + 8} z={z + 9} />
+      <Lamp x={boilerX - 12} z={z + 9} />
+    </group>
+  );
+}
+
+// A points-based star field on a high dome — constant-size white dots, fog-disabled so they
+// stay crisp pinpoints (no fake glowing spheres).
+function StarField({ count = 1600 }) {
+  const geo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(THREE.MathUtils.lerp(-0.12, 1, Math.random())); // zenith down to just below the horizon
+      const r = 450;
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.cos(phi);
+      pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    return g;
+  }, [count]);
+  return (
+    <points geometry={geo}>
+      <pointsMaterial color="#e6edff" size={1.5} sizeAttenuation={false} fog={false} transparent opacity={0.9} toneMapped={false} />
+    </points>
+  );
+}
+
+// Procedural moon surface (canvas): pale base with soft dark maria + craters. Used as both the
+// color map and the emissive map so craters read as darker spots within the glow.
+function makeMoonTexture() {
+  const size = 256;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#e9edfb'; ctx.fillRect(0, 0, size, size);
+  const blob = (x, y, r, shade, alpha) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${shade},${shade},${shade + 8},${alpha})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  };
+  for (let i = 0; i < 6; i++) blob(Math.random() * size, Math.random() * size, 30 + Math.random() * 45, 120 + Math.random() * 26, 0.36); // maria
+  for (let i = 0; i < 38; i++) {
+    const x = Math.random() * size, y = Math.random() * size, r = 3 + Math.random() * 13;
+    blob(x, y, r, 84 + Math.random() * 40, 0.62); // crater floor
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, 7); ctx.stroke(); // subtle rim
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// Procedural asphalt texture (canvas): dark base + aggregate speckle, tiled across the ground.
+// Self-contained — no external image assets to load.
+function makeAsphaltTexture() {
+  const size = 512;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#34383d'; ctx.fillRect(0, 0, size, size);
+  const img = ctx.getImageData(0, 0, size, size); const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 40;
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+  for (let k = 0; k < 1600; k++) {
+    const g = 150 + Math.random() * 60;
+    ctx.fillStyle = `rgba(${g},${g},${g + 4},${Math.random() * 0.07})`;
+    ctx.beginPath(); ctx.arc(Math.random() * size, Math.random() * size, Math.random() * 1.7, 0, 7); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(26, 26); tex.anisotropy = 8;
+  return tex;
+}
+
 function SceneInterior({ plant, theme, selected, onSelect, values }) {
   const t = theme.three;
-  const { rows, connectors, labels, pads } = useMemo(() => interiorLayout(plant), [plant]);
+  const { rows, connectors, labels, pads, structures } = useMemo(() => interiorLayout(plant), [plant]);
+  const asphalt = useMemo(() => makeAsphaltTexture(), []);
+  const moonTex = useMemo(() => makeMoonTexture(), []);
   const [hovered, setHovered] = useState(null);
   const focus = useMemo(() => rows.find((r) => r.id === selected)?.pos || null, [selected, rows]);
   return (
     <>
-      <color attach="background" args={[t.bg]} />
-      <fog attach="fog" args={[t.fog[0], 70, 260]} />
-      <hemisphereLight intensity={0.6} color={'#eaf1ff'} groundColor="#2b3524" />
-      <directionalLight position={[24, 40, 18]} intensity={2.2} color={'#fff4e6'} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-70} shadow-camera-right={70} shadow-camera-top={70} shadow-camera-bottom={-70} shadow-bias={-0.0002} />
-      <directionalLight position={[-20, 14, -10]} intensity={0.7} color={'#9db8ff'} />
-      <SafeEnvironment preset="sunset" intensity={1.1} />
-      {/* terrain: grassy ground so the plant sits on land, not a neon grid */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]} receiveShadow><planeGeometry args={[600, 600]} /><meshStandardMaterial color="#33402a" metalness={0.05} roughness={1} /></mesh>
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.01, 0]} receiveShadow><circleGeometry args={[120, 48]} /><meshStandardMaterial color="#3a4630" metalness={0.05} roughness={1} /></mesh>
+      <color attach="background" args={['#0a1120']} />
+      <fog attach="fog" args={['#0e1524', 110, 520]} />
+      <ambientLight intensity={0.5} color={'#dfeaff'} />
+      <hemisphereLight intensity={0.7} color={'#cfe0ff'} groundColor={'#141b26'} />
+      {/* strong overhead key light illuminating the whole plant, cool fill from behind */}
+      <directionalLight position={[0, 100, 40]} intensity={1.5} color={'#fff3e2'} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-110} shadow-camera-right={110} shadow-camera-top={110} shadow-camera-bottom={-110} shadow-bias={-0.0002} />
+      <directionalLight position={[-40, 45, -25]} intensity={0.55} color={'#9db8ff'} />
+      <SafeEnvironment preset="night" intensity={0.6} />
+      {/* moon low in the night sky — soft halo comes from bloom, plus a gentle moonlight fill */}
+      <group position={[-165, 72, -160]}>
+        <mesh><sphereGeometry args={[16, 40, 40]} /><meshStandardMaterial map={moonTex} emissiveMap={moonTex} color={'#c9d4ef'} emissive={'#dbe4ff'} emissiveIntensity={1.9} toneMapped={false} /></mesh>
+        <pointLight color={'#aebbe6'} intensity={0.4} distance={0} decay={0} />
+      </group>
+      <StarField />
+      {/* textured asphalt ground (replaces the grassy terrain) */}
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0]} receiveShadow>
+        <planeGeometry args={[600, 600]} />
+        <meshStandardMaterial map={asphalt} color="#83878e" metalness={0.08} roughness={0.94} />
+      </mesh>
       {/* concrete pad per unit */}
       {pads.map((p) => {
         const w = p.x1 - p.x0, cx = (p.x0 + p.x1) / 2;
         return (
           <group key={p.id} position={[cx, 0, p.z]}>
-            <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]} receiveShadow><planeGeometry args={[w, 22]} /><meshStandardMaterial color="#4a4e57" metalness={0.15} roughness={0.9} /></mesh>
+            <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]} receiveShadow><planeGeometry args={[w, 22]} /><meshStandardMaterial color="#2e343d" metalness={0.15} roughness={0.9} /></mesh>
           </group>
         );
       })}
+
+      {/* plant architecture: boiler house, turbine deck + condenser, hall canopy, area lights */}
+      {structures.map((s) => <UnitStructures key={s.unit} s={s} />)}
 
       {connectors.map((c) => <Connector key={c.id} from={c.from} to={c.to} kind={c.kind} ghost={c.ghost} />)}
       {labels.map((l) => (
@@ -393,8 +580,8 @@ function SceneInterior({ plant, theme, selected, onSelect, values }) {
       <ContactShadows position={[0, 0.05, 0]} opacity={0.5} scale={220} blur={2.4} far={36} />
       <CameraRig mode="interior" focus={focus} />
       <EffectComposer disableNormalPass>
-        <Bloom mipmapBlur intensity={t.bloom} luminanceThreshold={0.6} luminanceSmoothing={0.2} />
-        <Vignette eskil={false} offset={0.2} darkness={0.75} />
+        <Bloom mipmapBlur intensity={0.95} luminanceThreshold={0.5} luminanceSmoothing={0.28} />
+        <Vignette eskil={false} offset={0.25} darkness={0.4} />
       </EffectComposer>
     </>
   );

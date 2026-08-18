@@ -172,7 +172,7 @@ function Model({ asset, theme, anchors, active, onPick, snapshot }) {
   const g = useRef();
   const type = equipmentType(asset);
   const s = statusOf(asset?.status);
-  useFrame((st) => { if (g.current) g.current.rotation.y = -0.32 + Math.sin(st.clock.elapsedTime * 0.1) * 0.16; });
+  useFrame((st) => { if (g.current) g.current.rotation.y = -0.28 + Math.sin(st.clock.elapsedTime * 0.34) * 0.22; });
   // Lay labels out in two side columns (left/right of the model) so they never overlap;
   // each connects back to its component with a leader line. Classic exploded-callout look.
   const labelPos = useMemo(() => {
