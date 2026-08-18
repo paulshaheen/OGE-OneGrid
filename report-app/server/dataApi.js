@@ -36,11 +36,12 @@ export async function status() {
   return cached('status', 15_000, async () => {
     const t = T();
     const pausedMsg = 'The Fabric capacity is paused — live data is unavailable outside normal operating hours. Readings resume automatically when the capacity restarts.';
+    const inferMsg  = 'Live data is unavailable — the Fabric capacity appears to be paused (outside normal operating hours). Readings resume automatically when it restarts.';
     if (!t.workspaceId || !t.datasetId) {
       return { ok: false, configured: false, capacityPaused: false, message: 'No Fabric target is configured for this app.' };
     }
 
-    // 1) Authoritative capacity-state check (when readable).
+    // 1) Authoritative capacity-state check (works for any capacity/identity that can read it).
     try {
       const { state } = await withTimeout(getCapacityState(t.workspaceId), 8_000, 'capacity-state timeout');
       if (state && !/^active$/i.test(state)) {
@@ -49,7 +50,7 @@ export async function status() {
       if (state && /^active$/i.test(state)) {
         return { ok: true, capacityPaused: false, capacityState: state };
       }
-      // state null/unknown -> fall through to the query probe.
+      // state null/unknown (identity can't read capacity state) -> fall through to the query probe.
     } catch { /* fall through */ }
 
     // 2) Fallback data probe. If it fails at all, the data plane isn't serving -> show the banner.
@@ -58,7 +59,7 @@ export async function status() {
       return { ok: true, capacityPaused: false };
     } catch (e) {
       const detail = String((e && e.message) || e);
-      return { ok: false, capacityPaused: true, message: pausedMsg, detail: detail.slice(0, 300) };
+      return { ok: false, capacityPaused: true, inferred: true, message: inferMsg, detail: detail.slice(0, 300) };
     }
   });
 }
