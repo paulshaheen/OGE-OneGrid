@@ -4,14 +4,17 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Cascadia Code', 'Consolas', 'monospace'],
+        sans: ['"Segoe UI Variable Text"', '"Segoe UI Variable"', '"Segoe UI"', 'system-ui', 'sans-serif'],
+        display: ['"Segoe UI Variable Display"', '"Segoe UI Variable"', '"Segoe UI"', 'system-ui', 'sans-serif'],
+        mono: ['"Cascadia Code"', '"Cascadia Mono"', 'ui-monospace', 'Consolas', 'monospace'],
       },
       colors: {
-        ok: '#2fd07a',
-        watch: '#ffcc4d',
-        crit: '#ff5470',
-        ink: '#0b0f17',
+        ok: '#3fd08a',
+        watch: '#f0b429',
+        crit: '#ff5a5f',
+        intel: '#a986ff',
+        azure: '#3f96ff',
+        ink: '#06080d',
       },
       keyframes: {
         floaty: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },

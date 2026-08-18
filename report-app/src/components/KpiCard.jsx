@@ -14,10 +14,10 @@ export function KpiCard({ theme, label, value, unit, sub, accent, onClick, delay
       onClick={onClick}
       className={`group relative ${theme.card} overflow-hidden ${clickable ? 'cursor-pointer' : ''}`}
     >
-      <div className="absolute left-0 top-0 h-full w-[3px]" style={{ background: color, boxShadow: theme.id !== 'executive' ? `0 0 12px ${color}` : 'none' }} />
+      <div className="absolute left-0 top-0 h-full w-[2px]" style={{ background: color }} />
       <div className="p-4 sm:p-5 pl-5">
         <div className="flex items-center justify-between">
-          <span className={`text-[10.5px] font-semibold uppercase tracking-[0.14em] ${theme.sub}`}>{label}</span>
+          <span className="eyebrow" style={{ color: 'currentColor' }}><span className={theme.sub}>{label}</span></span>
           {clickable && (
             <svg className={`w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition ${theme.sub}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
           )}
