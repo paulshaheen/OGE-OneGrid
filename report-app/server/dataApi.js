@@ -35,8 +35,8 @@ function isLikelyUnavailable(msg) {
 export async function status() {
   return cached('status', 15_000, async () => {
     const t = T();
-    const pausedMsg = 'The Fabric capacity is paused — live data is unavailable outside normal operating hours. Readings resume automatically when the capacity restarts.';
-    const inferMsg  = 'Live data is unavailable — the Fabric capacity appears to be paused (outside normal operating hours). Readings resume automatically when it restarts.';
+    const pausedMsg = 'Live data is unavailable outside normal operating hours. Readings resume automatically when the capacity restarts.';
+    const inferMsg  = 'The Fabric capacity appears to be paused outside normal operating hours. Readings resume automatically when it restarts.';
     if (!t.workspaceId || !t.datasetId) {
       return { ok: false, configured: false, capacityPaused: false, message: 'No Fabric target is configured for this app.' };
     }

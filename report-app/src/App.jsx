@@ -28,9 +28,11 @@ function CapacityPausedBanner({ status }) {
               <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
             </span>
             <div className="leading-tight min-w-0">
-              <div className="text-sm font-semibold" style={{ color: '#fbbf24' }}>Fabric capacity paused — live data is unavailable</div>
+              <div className="text-sm font-semibold" style={{ color: '#fbbf24' }}>
+                {status.inferred ? 'Live data unavailable' : 'Fabric capacity paused'}
+              </div>
               <div className="text-[12px] opacity-80" style={{ color: '#fde68a' }}>
-                {status.message || 'The capacity is paused outside normal operating hours. Readings will refresh automatically when it restarts.'}
+                {status.message || 'Live data is unavailable outside normal operating hours. Readings refresh automatically when the capacity restarts.'}
               </div>
             </div>
           </div>
