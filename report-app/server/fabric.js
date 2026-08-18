@@ -78,6 +78,8 @@ export function isCapacityPausedError(e) {
   if (/\bpaused\b|\bsuspended\b|\bsuspend\b/.test(m)) return true;
   if (/capacity/.test(m) && /(not\s*active|inactive|unavailable|disabled|paused|suspended|is off)/.test(m)) return true;
   if (/capacitynotactive|powerbicapacity|premiumcapacity|f-?sku/.test(m) && /(paus|suspend|inactiv|unavail|disab)/.test(m)) return true;
+  // A paused capacity can't load the model: DAX fails to open the Analysis Services connection.
+  if (/failed to open the msolap connection|msolap connection|analysis services.*(unavailable|not.*available)/.test(m)) return true;
   return false;
 }
 

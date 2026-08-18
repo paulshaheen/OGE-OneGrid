@@ -43,7 +43,7 @@ export async function status() {
 
     // 1) Authoritative capacity-state check (works for any capacity/identity that can read it).
     try {
-      const { state } = await withTimeout(getCapacityState(t.workspaceId), 8_000, 'capacity-state timeout');
+      const { state } = await withTimeout(getCapacityState(t.workspaceId), 15_000, 'capacity-state timeout');
       if (state && !/^active$/i.test(state)) {
         return { ok: false, capacityPaused: true, capacityState: state, message: pausedMsg };
       }
