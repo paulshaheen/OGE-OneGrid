@@ -1,16 +1,16 @@
 // Data access: REST fetch hooks + realtime WebSocket client.
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const API = ''; // same origin (vite proxies /api and /ws to the backend)
+function apiBase() { return (typeof window !== 'undefined' && window.__ONEGRID_API__) || ''; } // same origin normally; the Power BI embed sets an absolute backend base (read at call time)
 
 export async function getJson(path) {
-  const r = await fetch(API + path);
+  const r = await fetch(apiBase() + path);
   if (!r.ok) throw new Error(`${path} -> ${r.status}`);
   return r.json();
 }
 
 export async function postJson(path, body) {
-  const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await fetch(apiBase() + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`${path} -> ${r.status}`);
   return r.json();
 }
@@ -69,8 +69,9 @@ export function useRealtime() {
   useEffect(() => {
     let stop = false;
     const connect = () => {
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${location.host}/ws/realtime`);
+      const base = (typeof window !== 'undefined' && window.__ONEGRID_API__) || '';
+      const wsUrl = base ? base.replace(/^http/, 'ws') + '/ws/realtime' : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/realtime`;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       ws.onopen = () => { setConnected(true); if (tagsRef.current.length) ws.send(JSON.stringify({ type: 'subscribe', tags: tagsRef.current })); };
       ws.onclose = () => { setConnected(false); if (!stop) setTimeout(connect, 2000); };

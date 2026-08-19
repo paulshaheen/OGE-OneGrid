@@ -1,0 +1,26 @@
+{
+  "visual": {
+    "name": "oneGridApp",
+    "displayName": "OneGridApp",
+    "guid": "oneGridApp5B80770A054A4904AACBEDAC0E402998",
+    "visualClassName": "Visual",
+    "version": "1.0.5.0",
+    "description": "OneGrid app wrapped as a Power BI custom visual (demo).",
+    "supportUrl": "https://github.com/paulshaheen/OGE-OneGrid",
+    "gitHubUrl": ""
+  },
+  "apiVersion": "5.11.1",
+  "author": {
+    "name": "OneGrid",
+    "email": "demo@onegrid.local"
+  },
+  "assets": {
+    "icon": "assets/icon.png"
+  },
+  "externalJS": null,
+  "style": "style/visual.less",
+  "capabilities": "capabilities.json",
+  "dependencies": null,
+  "stringResources": [],
+  "version": "1.0.0.0"
+}

@@ -28,3 +28,8 @@ _gen-*.py
 bin/
 obj/
 *.user
+
+report-app/embed-dist/
+pbi-visual/node_modules/
+pbi-visual/dist/
+pbi-visual/.tmp/

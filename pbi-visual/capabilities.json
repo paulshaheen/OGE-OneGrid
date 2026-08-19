@@ -1,0 +1,6 @@
+{
+    "privileges": [
+        { "name": "WebAccess", "essential": true, "parameters": [ "https://onegrid-app-75033e-chat.niceisland-20053c21.eastus2.azurecontainerapps.io" ] }
+    ],
+    "supportsLandingPage": true
+}
