@@ -42,7 +42,6 @@ Log "OneGrid app  : $OneGridAppUrl"
 
 # Ensure extensions
 if (-not (az extension show -n containerapp 2>$null)) { az extension add -n containerapp --only-show-errors | Out-Null }
-if (-not (az extension show -n botservice 2>$null))  { az extension add -n botservice  --only-show-errors | Out-Null }
 az provider register -n Microsoft.App --wait 2>$null | Out-Null
 az provider register -n Microsoft.BotService --wait 2>$null | Out-Null
 
@@ -93,10 +92,10 @@ if (-not (az containerapp env show -n $envName -g $ResourceGroup 2>$null)) {
 }
 $envVars = @(
   "ONEGRID_APP_URL=$OneGridAppUrl",
-  "MicrosoftAppType=SingleTenant",
-  "MicrosoftAppId=$appId",
-  "MicrosoftAppPassword=$secret",
-  "MicrosoftAppTenantId=$tenantId",
+  "clientId=$appId",
+  "clientSecret=$secret",
+  "tenantId=$tenantId",
+  "authType=ClientSecret",
   "PORT=3978"
 )
 az containerapp create -n $AppName -g $ResourceGroup --environment $envName `
@@ -107,18 +106,33 @@ $fqdn = az containerapp show -n $AppName -g $ResourceGroup --query properties.co
 $messagingEndpoint = "https://$fqdn/api/messages"
 Log "  bot endpoint: $messagingEndpoint"
 
-# ---- 4) Azure Bot resource + Teams channel ---------------------------------
+# ---- 4) Azure Bot resource + Teams channel (via ARM REST) ------------------
+# The 'botservice' az CLI extension has been retired, so we create the bot and enable
+# the Microsoft Teams channel directly through the Microsoft.BotService ARM API.
 Log "`n[4/5] Azure Bot + Teams channel ..."
-if (-not (az bot show -n $BotName -g $ResourceGroup 2>$null)) {
-  az bot create -n $BotName -g $ResourceGroup --app-type SingleTenant --appid $appId --tenant-id $tenantId `
-    --endpoint $messagingEndpoint --sku F0 -o none
-  Log "  bot created"
-} else {
-  az bot update -n $BotName -g $ResourceGroup --endpoint $messagingEndpoint -o none
-  Log "  bot endpoint updated"
-}
-az bot msteams create -n $BotName -g $ResourceGroup -o none 2>$null
-Log "  Microsoft Teams channel enabled"
+$armTok = az account get-access-token --resource "https://management.azure.com" --query accessToken -o tsv
+$armH = @{ Authorization = "Bearer $armTok"; 'Content-Type' = 'application/json' }
+$botBase = "https://management.azure.com/subscriptions/$sub/resourceGroups/$ResourceGroup/providers/Microsoft.BotService/botServices/$BotName"
+$botBody = @{
+  location   = 'global'
+  sku        = @{ name = 'F0' }
+  kind       = 'azurebot'
+  properties = @{
+    displayName    = 'OneGrid Assistant'
+    endpoint       = $messagingEndpoint
+    msaAppId       = $appId
+    msaAppType     = 'SingleTenant'
+    msaAppTenantId = $tenantId
+  }
+} | ConvertTo-Json -Depth 8
+$rb = Invoke-WebRequest -Method Put -Headers $armH -Uri "$botBase`?api-version=2022-09-15" -Body $botBody -SkipHttpErrorCheck
+Log "  bot resource -> $($rb.StatusCode)"
+$chanBody = @{
+  location   = 'global'
+  properties = @{ channelName = 'MsTeamsChannel'; properties = @{ isEnabled = $true } }
+} | ConvertTo-Json -Depth 8
+$rc = Invoke-WebRequest -Method Put -Headers $armH -Uri "$botBase/channels/MsTeamsChannel`?api-version=2022-09-15" -Body $chanBody -SkipHttpErrorCheck
+Log "  Microsoft Teams channel -> $($rc.StatusCode)"
 
 # ---- 5) Render + zip the Teams app package ---------------------------------
 Log "`n[5/5] Building Teams app package ..."
