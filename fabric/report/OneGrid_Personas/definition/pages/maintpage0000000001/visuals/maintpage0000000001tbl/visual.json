@@ -1,0 +1,116 @@
+{
+  "visual": {
+    "query": {
+      "sortDefinition": {
+        "sort": [
+          {
+            "direction": "Descending",
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_work_requests"
+                  }
+                },
+                "Property": "create_date"
+              }
+            }
+          }
+        ]
+      },
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "nativeQueryRef": "Problem",
+              "displayName": "Problem",
+              "queryRef": "fact_work_requests.problem_descr",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_work_requests"
+                    }
+                  },
+                  "Property": "problem_descr"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Status",
+              "displayName": "Status",
+              "queryRef": "fact_work_requests.wr_status",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_work_requests"
+                    }
+                  },
+                  "Property": "wr_status"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Priority",
+              "displayName": "Priority",
+              "queryRef": "fact_work_requests.priority",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_work_requests"
+                    }
+                  },
+                  "Property": "priority"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Hours",
+              "displayName": "Hours",
+              "queryRef": "fact_work_requests.total_hrs",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_work_requests"
+                    }
+                  },
+                  "Property": "total_hrs"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Created",
+              "displayName": "Created",
+              "queryRef": "fact_work_requests.create_date",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_work_requests"
+                    }
+                  },
+                  "Property": "create_date"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "visualType": "tableEx",
+    "drillFilterOtherVisuals": true
+  },
+  "position": {
+    "y": 552,
+    "tabOrder": 30,
+    "width": 1232,
+    "height": 396,
+    "z": 5,
+    "x": 24
+  },
+  "name": "maintpage0000000001tbl",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json"
+}

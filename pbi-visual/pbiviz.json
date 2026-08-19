@@ -4,7 +4,7 @@
     "displayName": "OneGridApp",
     "guid": "oneGridApp5B80770A054A4904AACBEDAC0E402998",
     "visualClassName": "Visual",
-    "version": "1.0.5.0",
+    "version": "1.0.6.0",
     "description": "OneGrid app wrapped as a Power BI custom visual (demo).",
     "supportUrl": "https://github.com/paulshaheen/OGE-OneGrid",
     "gitHubUrl": ""

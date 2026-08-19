@@ -1,0 +1,101 @@
+{
+  "visual": {
+    "query": {
+      "sortDefinition": {
+        "sort": [
+          {
+            "direction": "Descending",
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "dim_asset"
+                  }
+                },
+                "Property": "asset_display_name"
+              }
+            }
+          }
+        ]
+      },
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "nativeQueryRef": "Asset",
+              "displayName": "Asset",
+              "queryRef": "dim_asset.asset_display_name",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "asset_display_name"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Plant",
+              "displayName": "Plant",
+              "queryRef": "dim_asset.plant",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "plant"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Unit",
+              "displayName": "Unit",
+              "queryRef": "dim_asset.unit",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "unit"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Category",
+              "displayName": "Category",
+              "queryRef": "dim_asset.equipment_category",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "equipment_category"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "visualType": "tableEx",
+    "drillFilterOtherVisuals": true
+  },
+  "position": {
+    "y": 552,
+    "tabOrder": 30,
+    "width": 1232,
+    "height": 396,
+    "z": 5,
+    "x": 24
+  },
+  "name": "govpage000000000001tbl",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json"
+}

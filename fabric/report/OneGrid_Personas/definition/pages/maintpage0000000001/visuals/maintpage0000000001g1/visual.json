@@ -1,0 +1,56 @@
+{
+  "visual": {
+    "query": {
+      "queryState": {
+        "Y": {
+          "projections": [
+            {
+              "nativeQueryRef": "Work Orders",
+              "queryRef": "dim_asset.Work Orders",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "Work Orders"
+                }
+              }
+            }
+          ]
+        },
+        "Category": {
+          "projections": [
+            {
+              "nativeQueryRef": "priority",
+              "queryRef": "fact_work_requests.priority",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_work_requests"
+                    }
+                  },
+                  "Property": "priority"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "visualType": "columnChart",
+    "drillFilterOtherVisuals": true
+  },
+  "position": {
+    "y": 232,
+    "tabOrder": 21,
+    "width": 792,
+    "height": 300,
+    "z": 2,
+    "x": 440
+  },
+  "name": "maintpage0000000001g1",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json"
+}

@@ -1,0 +1,56 @@
+{
+  "visual": {
+    "query": {
+      "queryState": {
+        "Y": {
+          "projections": [
+            {
+              "nativeQueryRef": "Active Anomalies",
+              "queryRef": "dim_asset.Active Anomalies",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "Active Anomalies"
+                }
+              }
+            }
+          ]
+        },
+        "Category": {
+          "projections": [
+            {
+              "nativeQueryRef": "severity",
+              "queryRef": "anomaly_advisories.severity",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "anomaly_advisories"
+                    }
+                  },
+                  "Property": "severity"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "visualType": "donutChart",
+    "drillFilterOtherVisuals": true
+  },
+  "position": {
+    "y": 232,
+    "tabOrder": 20,
+    "width": 360,
+    "height": 300,
+    "z": 2,
+    "x": 24
+  },
+  "name": "ctrlpage00000000001g0",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json"
+}

@@ -1459,6 +1459,48 @@ function Phase-Governance {
   } catch { Log "  could not write governance-manifest.json: $($_.Exception.Message)" "Yellow" }
 }
 
+# ============================ PHASE: Power BI (personas + app visual) ========
+# Additive module: a persona-ready Direct Lake model (reads lh_poc), a native
+# "OneGrid Personas" report (Executive/Control Room/Maintenance/Governance), and
+# the app-wrapped custom visual (.pbiviz) for the "OneGrid app inside Power BI"
+# experience. Rebinds the exported (source-tenant) GUIDs to this deployment.
+function Phase-PowerBI {
+  $ws = $state.WorkspaceId
+  if (-not $ws) { Log "PHASE powerbi: no workspace - run 'workspace' first" "Yellow"; return }
+  if (-not $state.LakehouseId) { Log "PHASE powerbi: no lakehouse - run 'core'+'data' first" "Yellow"; return }
+  Log "PHASE powerbi: persona report + app-wrapped custom visual"
+
+  # 1) Persona-ready Direct Lake model over lh_poc. The exported definition carries the
+  #    source-tenant workspace/lakehouse GUIDs; rebind them to this deployment.
+  $smFolder = Join-Path $Here "fabric\semanticmodel\semantic-main-personas"
+  if (-not (Test-Path $smFolder)) { Log "  semantic-main-personas folder missing - skipping" "Yellow"; return }
+  $map = @{ "a9fefbc4-1e6f-4473-977c-87e776eecf74" = $ws; "9fcbd918-2e45-44ff-8c0b-a2814b56ccd6" = $state.LakehouseId }
+  $sm = UpsertItem $ws "semanticModels" "semantic-main-personas" (BuildDefinition $smFolder $map)
+  $personaModelId = $sm.id
+  Log "  persona model = $personaModelId" "Green"
+  try { $pbi = PbiTok; Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$ws/datasets/$personaModelId/refreshes" -Method Post -Headers @{ Authorization="Bearer $pbi"; "Content-Type"="application/json" } -Body '{"type":"full","notifyOption":"NoNotification"}' | Out-Null } catch {}
+
+  # 2) Native persona report bound to that model (rebind the source model id + workspace name).
+  $rptFolder = Join-Path $Here "fabric\report\OneGrid_Personas"
+  if (Test-Path $rptFolder) {
+    $map2 = @{ "2ed15292-0790-4199-b6d7-a50bc46eaf9a" = $personaModelId; "myorg/OneGrid;" = "myorg/$($cfg.fabric.workspaceName);" }
+    try { UpsertItem $ws "reports" "OneGrid Personas" (BuildDefinition $rptFolder $map2) | Out-Null; Log "  OneGrid Personas report created" "Green" }
+    catch { Log "  persona report FAILED (rebind dataset manually): $($_.Exception.Message)" "Yellow" }
+  }
+
+  # 3) App-wrapped custom visual: the OneGrid React app hosted in a Power BI custom visual
+  #    (renders in the Service, fetches the deployed app's REST API at runtime). Imported
+  #    per report in two clicks. Stage it next to the user for easy import.
+  $pbiviz = Join-Path $Here "fabric\powerbi-visual\OneGridApp.pbiviz"
+  if (Test-Path $pbiviz) {
+    try {
+      $dl = Join-Path $HOME 'Downloads'
+      if (Test-Path $dl) { Copy-Item $pbiviz (Join-Path $dl 'OneGridApp.pbiviz') -Force; Log "  OneGridApp.pbiviz -> ~/Downloads (import via Visualizations > ... > Import a visual from a file)" "Green" }
+      else { Log "  app visual at fabric/powerbi-visual/OneGridApp.pbiviz (import via Visualizations > ... > Import a visual from a file)" "Green" }
+    } catch {}
+  }
+}
+
 # ============================ run =============================================
 if ($Teardown) { Phase-Teardown; return }
 
@@ -1469,6 +1511,7 @@ $phases = [ordered]@{
   data        = { Phase-Data }
   semantic    = { Phase-Semantic }
   oge         = { Phase-OGE }
+  powerbi     = { Phase-PowerBI }
   governance  = { Phase-Governance }
   foundry     = { Phase-Foundry }
   dataagent   = { Phase-DataAgent }

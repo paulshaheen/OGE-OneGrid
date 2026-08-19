@@ -19,7 +19,7 @@ export default function ControlRoom({ theme }) {
   const [snapshot, setSnapshot] = useState({});
   const [tagQuery, setTagQuery] = useState('');
   useEffect(() => { setTagQuery(''); }, [sel?.asset_id]);
-  const [viewMode, setViewMode] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('pm.cr.view')) || 'map');
+  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('pm.cr.view') || 'map'; } catch { return 'map'; } });
   const setView = (v) => { setViewMode(v); try { localStorage.setItem('pm.cr.view', v); } catch { /* ignore */ } };
 
   // Make the chat aware of what's on screen: a selected asset, or the drilled-in plant.

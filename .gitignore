@@ -33,3 +33,5 @@ report-app/embed-dist/
 pbi-visual/node_modules/
 pbi-visual/dist/
 pbi-visual/.tmp/
+
+pbi-visual/src/onegrid-embed.js

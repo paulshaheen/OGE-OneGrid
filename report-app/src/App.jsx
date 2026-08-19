@@ -83,7 +83,7 @@ function CapacityPausedBanner({ status }) {
 export default function App() {
   const [personaId, setPersonaId] = useState('executive');
   const [gov, setGov] = useState(false);
-  const [mode, setMode] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('pm.theme.mode')) || 'dark');
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem('pm.theme.mode') || 'dark'; } catch { return 'dark'; } });
   const [tourOpen, setTourOpen] = useState(false);
   const capacityStatus = useCapacityStatus();
   const theme = MODES[mode] || MODES.light;

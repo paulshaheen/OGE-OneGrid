@@ -1,0 +1,62 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "execdon000000000001",
+  "position": {
+    "x": 440,
+    "y": 232,
+    "z": 3,
+    "height": 300,
+    "width": 360,
+    "tabOrder": 11
+  },
+  "visual": {
+    "visualType": "donutChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "predictions_shortterm"
+                    }
+                  },
+                  "Property": "alert_level"
+                }
+              },
+              "queryRef": "predictions_shortterm.alert_level",
+              "nativeQueryRef": "alert_level",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "predictions_shortterm"
+                        }
+                      },
+                      "Property": "asset_id"
+                    }
+                  },
+                  "Function": 4
+                }
+              },
+              "queryRef": "CountNonNull(predictions_shortterm.asset_id)",
+              "nativeQueryRef": "Predictions"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

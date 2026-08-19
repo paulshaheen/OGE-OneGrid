@@ -1,0 +1,116 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
+  "name": "exectbl000000000001",
+  "position": {
+    "x": 24,
+    "y": 552,
+    "z": 5,
+    "height": 396,
+    "width": 1232,
+    "tabOrder": 13
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "watchlist"
+                    }
+                  },
+                  "Property": "asset_id"
+                }
+              },
+              "queryRef": "watchlist.asset_id",
+              "nativeQueryRef": "Asset",
+              "displayName": "Asset"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "watchlist"
+                    }
+                  },
+                  "Property": "tag_name"
+                }
+              },
+              "queryRef": "watchlist.tag_name",
+              "nativeQueryRef": "Tag",
+              "displayName": "Tag"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "watchlist"
+                    }
+                  },
+                  "Property": "descriptor"
+                }
+              },
+              "queryRef": "watchlist.descriptor",
+              "nativeQueryRef": "Descriptor",
+              "displayName": "Descriptor"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "watchlist"
+                    }
+                  },
+                  "Property": "recommended_action"
+                }
+              },
+              "queryRef": "watchlist.recommended_action",
+              "nativeQueryRef": "Action",
+              "displayName": "Action"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "watchlist"
+                    }
+                  },
+                  "Property": "risk_contribution"
+                }
+              },
+              "queryRef": "watchlist.risk_contribution",
+              "nativeQueryRef": "Risk",
+              "displayName": "Risk"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "watchlist"
+                  }
+                },
+                "Property": "risk_contribution"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

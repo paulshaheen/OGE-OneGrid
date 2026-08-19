@@ -1,0 +1,101 @@
+{
+  "visual": {
+    "query": {
+      "sortDefinition": {
+        "sort": [
+          {
+            "direction": "Descending",
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "anomaly_advisories"
+                  }
+                },
+                "Property": "peak_abs_z"
+              }
+            }
+          }
+        ]
+      },
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "nativeQueryRef": "Tag",
+              "displayName": "Tag",
+              "queryRef": "anomaly_advisories.Tag",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "anomaly_advisories"
+                    }
+                  },
+                  "Property": "Tag"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Severity",
+              "displayName": "Severity",
+              "queryRef": "anomaly_advisories.severity",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "anomaly_advisories"
+                    }
+                  },
+                  "Property": "severity"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Advisory",
+              "displayName": "Advisory",
+              "queryRef": "anomaly_advisories.advisory_message",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "anomaly_advisories"
+                    }
+                  },
+                  "Property": "advisory_message"
+                }
+              }
+            },
+            {
+              "nativeQueryRef": "Peak |z|",
+              "displayName": "Peak |z|",
+              "queryRef": "anomaly_advisories.peak_abs_z",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "anomaly_advisories"
+                    }
+                  },
+                  "Property": "peak_abs_z"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "visualType": "tableEx",
+    "drillFilterOtherVisuals": true
+  },
+  "position": {
+    "y": 552,
+    "tabOrder": 30,
+    "width": 1232,
+    "height": 396,
+    "z": 5,
+    "x": 24
+  },
+  "name": "ctrlpage00000000001tbl",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json"
+}

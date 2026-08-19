@@ -1,0 +1,57 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "execdon000000000002",
+  "position": {
+    "x": 824,
+    "y": 232,
+    "z": 4,
+    "height": 300,
+    "width": 432,
+    "tabOrder": 12
+  },
+  "visual": {
+    "visualType": "donutChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "anomaly_advisories"
+                    }
+                  },
+                  "Property": "severity"
+                }
+              },
+              "queryRef": "anomaly_advisories.severity",
+              "nativeQueryRef": "severity",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_asset"
+                    }
+                  },
+                  "Property": "Active Anomalies"
+                }
+              },
+              "queryRef": "dim_asset.Active Anomalies",
+              "nativeQueryRef": "Active Anomalies"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}
