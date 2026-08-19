@@ -5,6 +5,7 @@ import { fmt, fmtInt, pct, counts, rankAssets, statusOf } from '../lib/format.js
 import { KpiCard } from '../components/KpiCard.jsx';
 import { AssetModal } from '../components/FleetGrid.jsx';
 import { SectionTitle, Spinner, Pill, StatusGlyph } from '../components/ui.jsx';
+import { ManualResolveModal } from '../components/Manuals.jsx';
 
 const prioColor = (p) => (Number(p) <= 1 ? '#ff5470' : Number(p) <= 2 ? '#f5a524' : Number(p) <= 3 ? '#ffcc4d' : '#7bb1ff');
 const FILTERS = [
@@ -18,7 +19,10 @@ export default function Maintenance({ theme }) {
   const { data: assets } = useApi('/api/fleet-assets', { pollMs: 60000 });
   const { data: wos } = useApi('/api/work-orders?limit=100');
   const { data: woSummary } = useApi('/api/work-orders-summary', { pollMs: 120000 });
+  const { data: manualsHealth } = useApi('/api/manuals/health');
+  const manualsOn = !!manualsHealth?.enabled;
   const [asset, setAsset] = useState(null);
+  const [resolveWo, setResolveWo] = useState(null);
   const [filter, setFilter] = useState('critical');
   const c = counts(assets || []);
   const h = health || {};
@@ -96,10 +100,11 @@ export default function Maintenance({ theme }) {
                 <thead className="sticky top-0" style={{ background: 'rgba(20,18,12,.9)' }}>
                   <tr className={`text-left ${theme.sub}`}>
                     {['Pri', 'WO', 'Problem', 'Location', 'Type', 'Status'].map((hd) => <th key={hd} className="font-medium py-2 px-3">{hd}</th>)}
+                    {manualsOn && <th className="font-medium py-2 px-3">Manual</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {!wos ? <tr><td colSpan={6} className="p-6"><Spinner theme={theme} /></td></tr> :
+                  {!wos ? <tr><td colSpan={manualsOn ? 7 : 6} className="p-6"><Spinner theme={theme} /></td></tr> :
                     wos.map((w, i) => (
                       <tr key={i} className="border-t border-white/5 hover:bg-white/5">
                         <td className="py-2 px-3"><span className="inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-bold" style={{ background: `${prioColor(w.priority_code || w.priority)}22`, color: prioColor(w.priority_code || w.priority) }}>{w.priority_code || w.priority || '-'}</span></td>
@@ -108,6 +113,15 @@ export default function Maintenance({ theme }) {
                         <td className={`py-2 px-3 text-xs ${theme.sub}`}>{w.location || w.problem_location || w.parent_descr || '-'}</td>
                         <td className={`py-2 px-3 text-xs ${theme.sub}`}>{w.wr_type || '-'}</td>
                         <td className={`py-2 px-3 text-xs ${theme.sub}`}>{w.wr_status || '-'}</td>
+                        {manualsOn && (
+                          <td className="py-2 px-3">
+                            <button onClick={() => setResolveWo(w)} title="Resolve this work order with the equipment manual"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-md px-2 py-1 transition"
+                              style={{ color: theme.accent, border: `1px solid ${theme.accent}55`, background: `${theme.accent}12` }}>
+                              📖 Resolve
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                 </tbody>
@@ -118,6 +132,7 @@ export default function Maintenance({ theme }) {
       </div>
 
       <AssetModal theme={theme} asset={asset} onClose={() => setAsset(null)} />
+      <ManualResolveModal theme={theme} wo={resolveWo} onClose={() => setResolveWo(null)} />
     </div>
   );
 }

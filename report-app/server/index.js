@@ -13,6 +13,7 @@ import { proxyChat, proxyModels, warmAgent } from './chat.js';
 import { isCapacityPausedError } from './fabric.js';
 import * as api from './dataApi.js';
 import * as gov from './governance.js';
+import * as manuals from './manuals.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(__dirname, '..', 'dist');
@@ -36,7 +37,29 @@ function json(res, code, obj) {
 async function handleApi(req, res, url) {
   const p = url.pathname;
   try {
-    if (p === '/api/health') return json(res, 200, { ok: true, target: resolveTarget(), dataAgent: !!(process.env.DATA_AGENT_WORKSPACE && process.env.DATA_AGENT_ID) });
+    if (p === '/api/health') return json(res, 200, { ok: true, target: resolveTarget(), dataAgent: !!(process.env.DATA_AGENT_WORKSPACE && process.env.DATA_AGENT_ID), manuals: manuals.manualsEnabled() });
+    // ── Foundry IQ equipment manuals (knowledge base) ─────────────────────
+    if (p === '/api/manuals/health') return json(res, 200, { enabled: manuals.manualsEnabled(), categories: manuals.listCategories() });
+    if (p === '/api/manuals/search') {
+      const q = url.searchParams.get('q') || '';
+      const category = url.searchParams.get('category') || null;
+      const top = Math.min(10, Number(url.searchParams.get('top')) || 5);
+      if (!q.trim()) return json(res, 400, { error: 'q is required' });
+      return json(res, 200, { results: await manuals.searchManuals(q, { category, top }) });
+    }
+    if (p.startsWith('/api/manuals/category/')) {
+      return json(res, 200, { manuals: manuals.manualsForCategory(decodeURIComponent(p.slice('/api/manuals/category/'.length))) });
+    }
+    if (p.startsWith('/api/manuals/item/')) {
+      const m = manuals.getManual(decodeURIComponent(p.slice('/api/manuals/item/'.length)));
+      return m ? json(res, 200, m) : json(res, 404, { error: 'manual not found' });
+    }
+    if (p === '/api/manuals/resolve') {
+      const category = url.searchParams.get('category') || null;
+      const problem = url.searchParams.get('problem') || '';
+      const asset = { category: url.searchParams.get('assetCategory') || '', name: url.searchParams.get('assetName') || '', assetType: url.searchParams.get('assetType') || '' };
+      return json(res, 200, await manuals.resolveForWorkOrder({ category, asset, problem }));
+    }
     if (p === '/api/status') return json(res, 200, await api.status());
     if (p === '/api/fleet-health') return json(res, 200, await api.fleetHealth());
     if (p === '/api/fleet-assets') return json(res, 200, await api.fleetAssets());
