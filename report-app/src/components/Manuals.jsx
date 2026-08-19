@@ -1,6 +1,28 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Styling for rendered manual markdown so it reads like a real O&M manual, not raw .md.
+const MANUAL_CSS = `
+.manual-body{--mn-bd:rgba(128,148,180,.26)}
+.manual-body>*:first-child{margin-top:0}
+.manual-body h2{font-size:20px;font-weight:800;line-height:1.25;margin:22px 0 8px;color:var(--mn-accent)}
+.manual-body h3{font-size:15.5px;font-weight:700;margin:20px 0 7px;padding-bottom:5px;border-bottom:1px solid var(--mn-bd)}
+.manual-body h4{font-size:14px;font-weight:700;margin:16px 0 5px}
+.manual-body h5{font-size:13px;font-weight:700;margin:14px 0 5px;color:var(--mn-accent)}
+.manual-body p{margin:7px 0;line-height:1.6}
+.manual-body ul,.manual-body ol{margin:7px 0;padding-left:22px}
+.manual-body ul{list-style:disc}.manual-body ol{list-style:decimal}
+.manual-body li{margin:4px 0;line-height:1.55}
+.manual-body strong{color:var(--mn-accent);font-weight:650}
+.manual-body code{font-family:var(--mono,ui-monospace,monospace);font-size:.88em;background:rgba(128,148,180,.16);padding:1px 5px;border-radius:4px}
+.manual-body blockquote{margin:12px 0;padding:9px 13px;border-left:3px solid var(--mn-accent);background:rgba(128,148,180,.10);border-radius:0 8px 8px 0;font-size:.92em;opacity:.9}
+.manual-body table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.92em;border:1px solid var(--mn-bd);border-radius:8px;overflow:hidden}
+.manual-body thead th{text-align:left;font-weight:700;padding:8px 11px;background:rgba(128,148,180,.14);border-bottom:2px solid var(--mn-bd)}
+.manual-body td{padding:7px 11px;border-bottom:1px solid var(--mn-bd);vertical-align:top}
+.manual-body tr:last-child td{border-bottom:none}
+`;
+function ManualStyles() { return <style dangerouslySetInnerHTML={{ __html: MANUAL_CSS }} />; }
+
 // Small markdown -> HTML good enough for the synthetic manuals (headings, bold, lists,
 // tables, rules, paragraphs). No external dependency.
 export function manualMdToHtml(md) {
@@ -74,10 +96,11 @@ export function ManualViewer({ theme, id, onClose }) {
             </div>
             {!m && !err && <div style={{ color: sub, padding: 20 }}>Loading manual…</div>}
             {err && <div style={{ color: '#ff6b6b', padding: 20 }}>Could not load manual: {err}</div>}
-            {m && <div className="manual-body" style={{ fontSize: 14, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: manualMdToHtml(m.body_markdown) }} />}
+            {m && <div className="manual-body" style={{ fontSize: 14, lineHeight: 1.6, '--mn-accent': theme.accent }} dangerouslySetInnerHTML={{ __html: manualMdToHtml(m.body_markdown) }} />}
           </motion.div>
         </motion.div>
       )}
+      <ManualStyles />
     </AnimatePresence>
   );
 }
@@ -116,6 +139,7 @@ export function ManualResolveModal({ theme, wo, onClose }) {
         <motion.div style={overlay} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
           <motion.div onClick={(e) => e.stopPropagation()} initial={{ scale: .96, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .97, opacity: 0 }}
             style={{ width: 'min(760px,96vw)', maxHeight: '90vh', overflow: 'auto', background: bg, color: text, border: `1px solid ${theme.accent}44`, borderRadius: 14, padding: '22px 24px' }}>
+            <ManualStyles />
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <div>
                 <div style={{ fontFamily: 'var(--mono,monospace)', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: theme.accent }}>Resolve with manual · Foundry IQ</div>
@@ -154,7 +178,7 @@ export function ManualResolveModal({ theme, wo, onClose }) {
                   {(data.passages || []).slice(0, 3).map((p, k) => (
                     <div key={k} style={{ background: surface, border: `1px solid ${border}`, borderRadius: 10, padding: '12px 14px' }}>
                       <div style={{ fontSize: 11, color: theme.accent, marginBottom: 6 }}>{p.section} · <span style={{ color: sub }}>{p.manual_id}</span></div>
-                      <div className="manual-body" style={{ fontSize: 13, lineHeight: 1.55 }} dangerouslySetInnerHTML={{ __html: manualMdToHtml(p.snippet) }} />
+                      <div className="manual-body" style={{ fontSize: 13, lineHeight: 1.55, '--mn-accent': theme.accent }} dangerouslySetInnerHTML={{ __html: manualMdToHtml(p.snippet) }} />
                     </div>
                   ))}
                 </div>

@@ -23,6 +23,7 @@ export default function Maintenance({ theme }) {
   const manualsOn = !!manualsHealth?.enabled;
   const [asset, setAsset] = useState(null);
   const [resolveWo, setResolveWo] = useState(null);
+  const [woQuery, setWoQuery] = useState('');
   const [filter, setFilter] = useState('critical');
   const c = counts(assets || []);
   const h = health || {};
@@ -32,6 +33,14 @@ export default function Maintenance({ theme }) {
 
   const filtered = rankAssets((assets || []).filter((a) => (a.status || 'ok') === filter));
   const filterMeta = FILTERS.find((f) => f.key === filter);
+  const dark = theme.persona !== 'executive';
+  const woPrio = (w) => { const n = Number(w.priority_code ?? w.priority); return Number.isFinite(n) ? n : 99; };
+  const woList = (wos || []).filter((w) => {
+    const q = woQuery.trim().toLowerCase();
+    if (!q) return true;
+    return [w.wr_id, w.problem_descr, w.location, w.problem_location, w.parent_descr, w.wr_type, w.wr_status]
+      .some((v) => String(v || '').toLowerCase().includes(q));
+  }).sort((a, b) => woPrio(a) - woPrio(b));
 
   return (
     <div className="h-full overflow-y-auto px-4 sm:px-6 lg:px-8 py-5 max-w-[1600px] mx-auto">
@@ -93,9 +102,18 @@ export default function Maintenance({ theme }) {
         </div>
 
         <div className="xl:col-span-3">
-          <SectionTitle theme={theme} right={<span className={`text-xs ${theme.sub}`}>{wos ? `${wos.length} shown` : ''}</span>}>Open Work Orders - by priority</SectionTitle>
+          <SectionTitle theme={theme} right={<span className={`text-xs ${theme.sub}`}>{wos ? `${woList.length}${woQuery ? ` / ${wos.length}` : ''} shown` : ''}</span>}>Open Work Orders - by priority</SectionTitle>
           <div className={`${theme.panel} overflow-hidden`}>
-            <div className="overflow-y-auto" style={{ maxHeight: '68vh' }}>
+            <div className="p-2.5" style={{ borderBottom: `1px solid ${dark ? 'rgba(255,255,255,.08)' : 'rgba(15,23,42,.08)'}` }}>
+              <div className="relative">
+                <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" strokeLinecap="round" /></svg>
+                <input value={woQuery} onChange={(e) => setWoQuery(e.target.value)} placeholder="Search work orders — WO #, problem, location, type, status…"
+                  className={`w-full text-sm rounded-md pl-8 pr-8 py-1.5 outline-none ${theme.heading}`}
+                  style={{ background: dark ? 'rgba(255,255,255,.05)' : '#f4f7fb', border: `1px solid ${dark ? 'rgba(255,255,255,.10)' : 'rgba(15,23,42,.10)'}` }} />
+                {woQuery && <button onClick={() => setWoQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-lg leading-none opacity-50 hover:opacity-90">×</button>}
+              </div>
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: '62vh' }}>
               <table className="w-full text-sm">
                 <thead className="sticky top-0" style={{ background: 'rgba(20,18,12,.9)' }}>
                   <tr className={`text-left ${theme.sub}`}>
@@ -105,7 +123,8 @@ export default function Maintenance({ theme }) {
                 </thead>
                 <tbody>
                   {!wos ? <tr><td colSpan={manualsOn ? 7 : 6} className="p-6"><Spinner theme={theme} /></td></tr> :
-                    wos.map((w, i) => (
+                    woList.length === 0 ? <tr><td colSpan={manualsOn ? 7 : 6} className={`p-6 text-center text-sm ${theme.sub}`}>No work orders match “{woQuery}”.</td></tr> :
+                    woList.map((w, i) => (
                       <tr key={i} className="border-t border-white/5 hover:bg-white/5">
                         <td className="py-2 px-3"><span className="inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-bold" style={{ background: `${prioColor(w.priority_code || w.priority)}22`, color: prioColor(w.priority_code || w.priority) }}>{w.priority_code || w.priority || '-'}</span></td>
                         <td className={`py-2 px-3 font-mono text-xs ${theme.heading}`}>{w.wr_id}</td>

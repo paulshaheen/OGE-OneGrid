@@ -84,7 +84,7 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
   const [tokenPrompt, setTokenPrompt] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [dataAgentAvailable, setDataAgentAvailable] = useState(false);
-  const [agentMode, setAgentMode] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('pm.chat.agentMode') === '1'));
+  const [agentMode, setAgentMode] = useState(false);
   const scrollRef = useRef(null);
   const persona = PERSONA_MAP[pagePersona] || 'analyst';
   const dark = theme.mode !== 'light';
