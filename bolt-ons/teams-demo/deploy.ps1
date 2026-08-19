@@ -54,6 +54,10 @@ if (-not $appId) {
   $appId = az ad app create --display-name $BotName --sign-in-audience AzureADMyOrg --query appId -o tsv
   Log "  created app $appId"
 } else { Log "  reusing app $appId" }
+# The bot authenticates via client credentials, which requires a service principal
+# (enterprise app) for the registration — 'az ad app create' does not create one.
+az ad sp create --id $appId 2>$null | Out-Null
+Log "  service principal ensured"
 $secret = az ad app credential reset --id $appId --append --display-name "onegrid-teams" --years 1 --query password -o tsv
 Log "  client secret generated"
 
