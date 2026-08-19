@@ -97,10 +97,11 @@ async function askDataAgent({ url, token, question, timeoutMs, onStatus }) {
     const schema = tool.inputSchema || tool.input_schema || {};
     const argName = Object.keys(schema.properties || { userQuestion: {} })[0] || 'userQuestion';
 
-    // 4) call the tool. The preview data-agent runtime intermittently returns transient
-    // 500 internal errors on non-trivial queries (the same question often succeeds on a
-    // retry), so attempt the call a few times with a short backoff before giving up.
-    const maxAttempts = 2;
+    // 4) call the tool. The preview data-agent runtime is slow (many valid queries take
+    // 60-90s) and also intermittently returns transient 500s. Give each attempt a
+    // generous timeout so legitimate queries complete, retry transient 5xx errors, but do
+    // NOT retry a timeout/abort (that just doubles the wait) — let the caller fall back.
+    const maxAttempts = 3;
     let lastErr = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         status(attempt === 1 ? 'Querying the ontology…' : `Retrying the query (attempt ${attempt})…`);
@@ -118,6 +119,10 @@ async function askDataAgent({ url, token, question, timeoutMs, onStatus }) {
             return { text, tool: tool.name, raw: result };
         } catch (e) {
             lastErr = e;
+            // A timeout/abort means the runtime is hung — don't burn another full timeout
+            // retrying; stop so the caller can fall back promptly.
+            const aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e.message || '')));
+            if (aborted) break;
             if (attempt < maxAttempts) await new Promise((res) => setTimeout(res, 1500));
         }
     }

@@ -957,6 +957,9 @@ const server = http.createServer(async (req, res) => {
                 'Access-Control-Allow-Origin': '*'
             });
             const sendStatus = (status) => res.write(`data: ${JSON.stringify({ type: 'status', status })}\n\n`);
+            // Keepalive so the SSE connection isn't dropped during long (up to ~2 min)
+            // data-agent queries that have no intermediate status updates.
+            const heartbeat = setInterval(() => { try { res.write(': keepalive\n\n'); } catch (_) { } }, 15000);
             try {
                 if (body.charCodeAt(0) === 0xFEFF) body = body.slice(1);
                 const { message } = JSON.parse(body.trim());
@@ -969,8 +972,9 @@ const server = http.createServer(async (req, res) => {
                 const token = await getToken('https://api.fabric.microsoft.com');
                 const { text, tool } = await askDataAgent({
                     url, token, question: String(message),
-                    timeoutMs: 55000, onStatus: sendStatus,
+                    timeoutMs: 120000, onStatus: sendStatus,
                 });
+                clearInterval(heartbeat);
                 res.write(`data: ${JSON.stringify({ type: 'done', reply: text || 'No answer returned.', source: 'fabric-data-agent', tool, queries: [], toolCalls: 1 })}\n\n`);
                 res.end();
             } catch (e) {

@@ -310,6 +310,24 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
                 </div>
               )}
 
+              {/* Fabric Data Agent notice — sets expectations on governed reasoning + slower responses */}
+              <AnimatePresence initial={false}>
+                {agentMode && dataAgentAvailable && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                    className="shrink-0 overflow-hidden" style={{ borderBottom: `1px solid ${border}`, background: `linear-gradient(90deg, ${theme.accent}14, ${theme.accent}06)` }}>
+                    <div className="px-4 py-2 flex items-start gap-2.5">
+                      <span className="w-5 h-5 mt-[1px] rounded-md grid place-items-center shrink-0" style={{ background: theme.accent, color: dark ? '#06121f' : '#fff' }}>
+                        <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 6c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3zm0 0v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </span>
+                      <div className="text-[11px] leading-snug flex-1 min-w-0" style={{ color: sub }}>
+                        <b style={{ color: text }}>Fabric Data Agent</b> is answering — a governed agent reasons over your semantic model and generates its own queries.
+                        <span style={{ color: theme.accent }}> Expect longer, more deliberate responses.</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* messages */}
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
                 {msgs.length === 0 && (

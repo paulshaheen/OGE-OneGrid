@@ -207,32 +207,52 @@ function interiorLayout(plant) {
 function CameraRig({ mode, focus }) {
   const controls = useRef();
   const { camera } = useThree();
-  const target = useRef(new THREE.Vector3(0, 2, 0));
-  const goal = useRef(new THREE.Vector3(0, 150, 118));
-  const settling = useRef(true);
-  const settleUntil = useRef(0);
+  // Time-based eased tween driven by accumulated (capped) frame-delta — NOT wall-clock —
+  // so a multi-second "building facility twin" stall can't skip the animation before the
+  // first frame renders. Reaches the goal exactly at t=1, so duration controls speed.
+  const anim = useRef({ active: false, elapsed: 0, dur: 1.4, from: new THREE.Vector3(), fromT: new THREE.Vector3(), to: new THREE.Vector3(), toT: new THREE.Vector3() });
   useEffect(() => {
-    if (mode === 'sites') { target.current.set(0, 12, 2); goal.current.set(6, 150, 182); }
-    else if (focus) { target.current.set(focus[0], 2, focus[2]); goal.current.set(focus[0] + 2, 14, focus[2] + 20); }
-    else { target.current.set(0, 2, 0); goal.current.set(0, 22, 44); }
-    settling.current = true;
-    settleUntil.current = performance.now() + 1400; // hard stop so it can never lerp forever
+    const c = controls.current;
+    const goalPos = new THREE.Vector3(), goalTgt = new THREE.Vector3();
+    let startPos = null, startTgt = null, dur = 1.4, fov = 40;
+    if (mode === 'sites') { goalTgt.set(0, 12, 2); goalPos.set(6, 150, 182); }
+    else if (focus) { goalTgt.set(focus[0], 2, focus[2]); goalPos.set(focus[0] + 2, 14, focus[2] + 20); }
+    else {
+      // Plant overview: cinematic entry — establishing angle up high, then sweep down and
+      // swing to the LEFT so the moon (far left/high/back at -165,72,-160) lands in the
+      // upper-left corner and the plant recedes into the lower-right foreground. Wider 48°
+      // FOV is needed to hold both the moon and the whole plant in one frame.
+      goalPos.set(10, 10, 115); goalTgt.set(-25, 15, -30); fov = 48;
+      startPos = new THREE.Vector3(-30, 55, 155); startTgt = new THREE.Vector3(0, 8, 0);
+      dur = 2.8;
+    }
+    if (camera.isPerspectiveCamera && camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    const a = anim.current;
+    a.from.copy(startPos || camera.position);
+    a.fromT.copy(startTgt || (c ? c.target : goalTgt));
+    a.to.copy(goalPos); a.toT.copy(goalTgt);
+    a.dur = dur; a.elapsed = 0; a.active = true;
+    if (startPos && c) { camera.position.copy(startPos); c.target.copy(startTgt); } // no first-frame jump
   }, [mode, focus]);
   // The instant the user grabs the camera, stop auto-centering for good (until the next
-  // explicit mode/focus transition). This is what prevents the "snaps back to center on
-  // release" behaviour.
+  // explicit mode/focus transition).
   useEffect(() => {
     const c = controls.current; if (!c) return;
-    const onStart = () => { settling.current = false; };
+    const onStart = () => { anim.current.active = false; };
     c.addEventListener('start', onStart);
     return () => c.removeEventListener('start', onStart);
   }, []);
-  useFrame(() => {
+  const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  useFrame((_, delta) => {
     const c = controls.current; if (!c) return;
-    if (settling.current) {
-      camera.position.lerp(goal.current, 0.08);
-      c.target.lerp(target.current, 0.1);
-      if ((camera.position.distanceTo(goal.current) < 0.8 && c.target.distanceTo(target.current) < 0.5) || performance.now() > settleUntil.current) settling.current = false;
+    const a = anim.current;
+    if (a.active) {
+      a.elapsed += Math.min(delta, 1 / 30); // cap so a long build/stall frame can't skip the sweep
+      const t = Math.min(1, a.elapsed / a.dur);
+      const e = easeInOut(t);
+      camera.position.lerpVectors(a.from, a.to, e);
+      c.target.lerpVectors(a.fromT, a.toT, e);
+      if (t >= 1) a.active = false;
     }
     c.update();
   });
