@@ -9,6 +9,9 @@ import { AreaTrend } from './charts.jsx';
 // keep the 3D bundle out of the landing-page critical path (fixes the huge LCP number).
 const EquipmentDetail = lazy(() => import('../three/EquipmentDetail.jsx').then((m) => ({ default: m.EquipmentDetail })));
 const Simulation = lazy(() => import('./Simulation.jsx').then((m) => ({ default: m.Simulation })));
+// Manual-resolve modal is loaded on demand (only when the user opens a work order's manual),
+// keeping the manuals/markdown code off the landing-page critical path.
+const ManualResolveModal = lazy(() => import('./Manuals.jsx').then((m) => ({ default: m.ManualResolveModal })));
 import { equipmentType } from '../three/equipmentType.js';
 import { Feedback } from './Feedback.jsx';
 import { useFocus } from '../lib/focus.js';
@@ -56,7 +59,7 @@ export function FleetGrid({ theme, assets, onOpen }) {
               <Pill status={a.status} theme={theme} />
             </div>
             <div className="mt-3 pl-2 grid grid-cols-3 gap-2">
-              <Metric theme={theme} label="Health" value={a.health != null ? pct(a.health) : '—'} color={s.color} />
+              <Metric theme={theme} label="Health" value={(a.score ?? a.health) != null ? pct(a.score ?? a.health) : '—'} color={s.color} />
               <Metric theme={theme} label="Anomalies" value={a.anom_n ?? 0} />
               <Metric theme={theme} label="Peak z" value={a.max_z != null ? fmt(a.max_z, 0) : '—'} />
             </div>
@@ -134,7 +137,7 @@ export function AssetModal({ theme, asset, onClose }) {
             <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: s.color }} />
             <div className="p-5 flex items-start justify-between gap-4">
               <div className="flex items-center gap-4">
-                <HealthRing value={asset.health != null ? asset.health : null} color={s.color} />
+                <HealthRing value={(asset.score ?? asset.health) != null ? (asset.score ?? asset.health) : null} color={s.color} />
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-xl font-bold text-white tracking-tight">{asset.name}</h2>
@@ -290,7 +293,10 @@ function Predictions({ theme, short, long, asset }) {
 // Past + open work orders associated with this equipment (matched by plant + unit/keyword).
 function WorkOrdersTab({ theme, asset }) {
   const { data } = useApi(`/api/asset-workorders/${encodeURIComponent(asset.asset_id)}`, { deps: [asset.asset_id] });
+  const { data: manualsHealth } = useApi('/api/manuals/health');
+  const manualsOn = !!manualsHealth?.enabled;
   const [q, setQ] = useState('');
+  const [resolveWo, setResolveWo] = useState(null);
   const rows = data?.rows || [];
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -298,6 +304,12 @@ function WorkOrdersTab({ theme, asset }) {
     return rows.filter((w) => [w.wr_id, w.problem, w.status, w.type, w.priority, w.entity, w.parent]
       .filter(Boolean).join(' ').toLowerCase().includes(s));
   }, [rows, q]);
+  // ManualResolveModal expects work-order fields under different names than this endpoint
+  // returns — normalise so the "Resolve with manual" flow gets the problem/asset/type it needs.
+  const toManualWo = (w) => ({
+    wr_id: w.wr_id, problem_descr: w.problem, wr_type: w.type,
+    parent_descr: w.parent, location: w.entity, wr_status: w.status,
+  });
   if (!data) return <Spinner theme={theme} label="Loading work orders…" />;
   if (!rows.length) return <Empty theme={theme} msg="No work orders found for this equipment." />;
   const prioColor = (p) => (Number(p) <= 1 ? '#ff5470' : Number(p) <= 2 ? '#f5a524' : Number(p) <= 3 ? '#ffcc4d' : '#7bb1ff');
@@ -327,9 +339,21 @@ function WorkOrdersTab({ theme, asset }) {
               <div className={`text-sm mt-1 ${theme.heading}`}>{w.problem}</div>
               {(w.entity || w.parent) && <div className={`text-[11px] mt-0.5 ${theme.sub}`}>{[w.entity, w.parent].filter(Boolean).join(' · ')}</div>}
             </div>
+            {manualsOn && (
+              <button onClick={() => setResolveWo(toManualWo(w))} title="Resolve this work order with the equipment manual"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-md px-2 py-1 h-fit shrink-0 self-start transition hover:opacity-80"
+                style={{ color: theme.accent, border: `1px solid ${theme.accent}55`, background: `${theme.accent}12` }}>
+                📖 Resolve
+              </button>
+            )}
           </div>
         ))}
       </div>
+      )}
+      {manualsOn && (
+        <Suspense fallback={null}>
+          <ManualResolveModal theme={theme} wo={resolveWo} onClose={() => setResolveWo(null)} />
+        </Suspense>
       )}
     </div>
   );

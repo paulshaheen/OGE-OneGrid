@@ -263,7 +263,7 @@ function SiteMenu({ model, theme, selected, activePlant, values, connected, puls
                           <div className={`text-sm font-medium truncate ${theme.heading}`}>{a.name}</div>
                           <div className={`text-[11px] ${theme.sub}`}>{a.category || 'equipment'}{a.tags?.length ? ` · ${a.tags.length} tags` : ''}</div>
                         </div>
-                        {a.health != null && <span className="text-sm font-bold tabular-nums" style={{ color: st.color }}>{Math.round(a.health)}%</span>}
+                        {(a.score ?? a.health) != null && <span className="text-sm font-bold tabular-nums" style={{ color: st.color }}>{Math.round(a.score ?? a.health)}%</span>}
                       </button>
                     );
                   })}

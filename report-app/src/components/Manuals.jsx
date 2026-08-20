@@ -68,7 +68,7 @@ export function manualMdToHtml(md) {
   return html;
 }
 
-const overlay = { position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(4,10,20,.62)', backdropFilter: 'blur(2px)', display: 'grid', placeItems: 'center', padding: 16 };
+const overlay = { position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(4,10,20,.62)', backdropFilter: 'blur(2px)', display: 'grid', placeItems: 'center', padding: 16 };
 
 // Full-manual reader.
 export function ManualViewer({ theme, id, onClose }) {
