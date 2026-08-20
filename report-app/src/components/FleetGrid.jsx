@@ -1,14 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { getJson, useRealtime, useApi } from '../lib/api.js';
 import { statusOf, fmt, pct, rankAssets } from '../lib/format.js';
 import { Modal, Pill, Chip, Spinner } from './ui.jsx';
 import { AreaTrend } from './charts.jsx';
-import { EquipmentDetail } from '../three/EquipmentDetail.jsx';
-import { equipmentType } from '../three/Equipment.jsx';
+// The 3D asset views pull in the entire three.js engine (three + drei + postprocessing).
+// They only ever render inside this modal (Model / Simulation tabs), so load them lazily to
+// keep the 3D bundle out of the landing-page critical path (fixes the huge LCP number).
+const EquipmentDetail = lazy(() => import('../three/EquipmentDetail.jsx').then((m) => ({ default: m.EquipmentDetail })));
+const Simulation = lazy(() => import('./Simulation.jsx').then((m) => ({ default: m.Simulation })));
+import { equipmentType } from '../three/equipmentType.js';
 import { Feedback } from './Feedback.jsx';
 import { useFocus } from '../lib/focus.js';
-import { Simulation } from './Simulation.jsx';
 
 // Compact SVG health ring for the modal header.
 function HealthRing({ value, color }) {
@@ -173,8 +176,10 @@ export function AssetModal({ theme, asset, onClose }) {
 
           <div className={`${tab === 'model' ? 'p-0' : 'p-5'} overflow-y-auto`} style={tab === 'model' ? { height: '58vh' } : { background: surface }}>
             {tab === 'model' ? (
-              <EquipmentDetail asset={modelAsset} theme={theme} snapshot={mergedSnapshot} loading={!detail}
-                anomalies={(detail && detail.anomalies) || []} rootCause={(detail && detail.rootCause) || []} />
+              <Suspense fallback={<Spinner theme={theme} label="Loading 3D model…" />}>
+                <EquipmentDetail asset={modelAsset} theme={theme} snapshot={mergedSnapshot} loading={!detail}
+                  anomalies={(detail && detail.anomalies) || []} rootCause={(detail && detail.rootCause) || []} />
+              </Suspense>
             ) : !detail ? <Spinner theme={theme} label="Loading asset intelligence…" /> :
               detail.error ? <div className="text-rose-400 text-sm">Failed to load detail.</div> : (
                 <>
@@ -182,7 +187,7 @@ export function AssetModal({ theme, asset, onClose }) {
                   {tab === 'watch' && <WatchTable theme={theme} rows={detail.watchlist} asset={asset} />}
                   {tab === 'anom' && <AnomTable theme={theme} rows={detail.anomalies} asset={asset} />}
                   {tab === 'pred' && <Predictions theme={theme} short={detail.predShort} long={detail.predLong} asset={asset} />}
-                  {tab === 'sim' && <Simulation theme={theme} asset={asset} detail={detail} />}
+                  {tab === 'sim' && <Suspense fallback={<Spinner theme={theme} label="Loading simulation…" />}><Simulation theme={theme} asset={asset} detail={detail} /></Suspense>}
                   {tab === 'wo' && <WorkOrdersTab theme={theme} asset={asset} />}
                 </>
               )}

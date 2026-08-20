@@ -1,12 +1,14 @@
-import { useState, useEffect, Component } from 'react';
+import { useState, useEffect, Component, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODES, PERSONAS } from './lib/themes.js';
 import { FocusProvider } from './lib/focus.js';
 import { useCapacityStatus } from './lib/api.js';
 import Executive from './personas/Executive.jsx';
-import ControlRoom from './personas/ControlRoom.jsx';
-import Maintenance from './personas/Maintenance.jsx';
-import Ontology from './personas/Ontology.jsx';
+// Non-landing personas are code-split so their heavy deps (notably the three.js 3D engine in
+// Control-Room) stay out of the initial/landing bundle — this is the main LCP win.
+const ControlRoom = lazy(() => import('./personas/ControlRoom.jsx'));
+const Maintenance = lazy(() => import('./personas/Maintenance.jsx'));
+const Ontology = lazy(() => import('./personas/Ontology.jsx'));
 import Governance, { ShieldIcon } from './personas/Governance.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
 import { Tour, TOUR_STEPS } from './components/Tour.jsx';
@@ -162,9 +164,11 @@ export default function App() {
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }}
           className="absolute inset-0">
           <ViewErrorBoundary theme={theme} viewKey={gov ? 'governance' : personaId} onReset={() => { setGov(false); setPersonaId('executive'); }}>
-            {gov
-              ? <Governance theme={theme} onClose={() => setGov(false)} />
-              : <Persona theme={theme} onNavigate={setPersonaId} onOpenGovernance={() => setGov(true)} />}
+            <Suspense fallback={<div className="h-full grid place-items-center"><div className={`text-sm ${theme.sub}`}>Loading…</div></div>}>
+              {gov
+                ? <Governance theme={theme} onClose={() => setGov(false)} />
+                : <Persona theme={theme} onNavigate={setPersonaId} onOpenGovernance={() => setGov(true)} />}
+            </Suspense>
           </ViewErrorBoundary>
         </motion.div>
       </main>

@@ -4,22 +4,10 @@ import { useFrame } from '@react-three/fiber';
 import { STEEL_TEX, PLATES_TEX, DARK_TEX, PAINTED_TEX, CONCRETE_TEX, HAS_TEX, STEAM_TEX } from './textures.js';
 
 // Map an asset to an equipment archetype. Prefer the NAME (the group is a unit label
-// like "TURBINE 2", not the equipment type).
-export function equipmentType(a) {
-  const name = `${a?.name || ''}`.toLowerCase();
-  const cat = `${a?.category || ''}`.toLowerCase();
-  const test = (re) => re.test(name);
-  if (test(/boiler|furnace|drum|economizer|superheat/)) return 'boiler';
-  if (test(/turbine/)) return 'turbine';
-  if (test(/pump|bfp|feed\s*pump/)) return 'pump';
-  if (test(/gen(erator)?|alternator|exciter/)) return 'generator';
-  // fall back to category / group only if the name was inconclusive
-  const s = `${cat} ${a?.group || ''}`.toLowerCase();
-  if (/boiler/.test(s)) return 'boiler';
-  if (/pump/.test(s)) return 'pump';
-  if (/turbine/.test(s)) return 'turbine';
-  return 'skid';
-}
+// like "TURBINE 2", not the equipment type). The pure classifier lives in its own module
+// (no `three` import) so lightweight callers can use it without the 3D engine; re-exported
+// here for the existing 3D components that import it alongside geometry helpers.
+export { equipmentType } from './equipmentType.js';
 
 // With real PBR sets loaded, the maps drive metalness/roughness/albedo — so we keep the
 // scalars near 1.0 and let color=white show the true texture (tints only where we want a
