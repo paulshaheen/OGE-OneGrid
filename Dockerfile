@@ -23,5 +23,10 @@ COPY --from=build /app/report-app/dist ./report-app/dist
 COPY --from=build /app/report-app/node_modules/ws ./report-app/node_modules/ws
 # chat agent (sibling folder, zero npm deps) — spawned by the report server
 COPY chatagent ./chatagent
+# Governance review-plane manifest(s). The sample always exists (so the plane renders
+# with real role shapes instead of the hardcoded 'fallback'); a governance-enabled deploy
+# also drops a real governance-manifest.json at the repo root, which this wildcard picks up.
+# governance.js reads these from the image root (/app).
+COPY governance-manifest*.json ./
 EXPOSE 8080
 CMD ["node", "report-app/server/index.js"]
