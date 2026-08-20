@@ -101,7 +101,7 @@ export default function Maintenance({ theme }) {
           )}
         </div>
 
-        <div className="xl:col-span-3">
+        <div data-tour="mnt-workorders" className="xl:col-span-3">
           <SectionTitle theme={theme} right={<span className={`text-xs ${theme.sub}`}>{wos ? `${woList.length}${woQuery ? ` / ${wos.length}` : ''} shown` : ''}</span>}>Open Work Orders - by priority</SectionTitle>
           <div className={`${theme.panel} overflow-hidden`}>
             <div className="p-2.5" style={{ borderBottom: `1px solid ${dark ? 'rgba(255,255,255,.08)' : 'rgba(15,23,42,.08)'}` }}>

@@ -29,6 +29,10 @@ export function Tour({ open, steps, theme, onClose, onNavigate }) {
     const st = steps[i]; if (!st) return;
     advanced.current = false;
     if (st.persona) onNavigate(st.persona);
+    // Some steps spotlight elements that only exist inside the open chat panel (e.g. the
+    // Fabric Data Agent toggle). Ask the ChatPanel to open so the target can be found even
+    // if the user skipped the interactive "open chat" step.
+    if (st.openChat && typeof window !== 'undefined') window.dispatchEvent(new Event('pm-chat-open'));
     if (!st.target) { setRect(null); return; }
     let cancelled = false, tries = 0, timer;
     const find = () => {
@@ -163,13 +167,17 @@ export function Tour({ open, steps, theme, onClose, onNavigate }) {
 // Tour script. `persona` switches the active tab; `target` is a data-tour selector.
 // `interactive: true` requires the user to click the highlighted element to advance.
 export const TOUR_STEPS = [
-  { tag: 'Welcome', title: 'Welcome to OneGrid', body: 'A quick, hands-on tour of how to navigate and get the most out of the dashboard. You can skip anytime.' },
-  { tag: 'Navigate', target: '[data-tour="tabs"]', interactive: true, hint: 'Click a tab to switch views', title: 'Three ways to work', body: 'Executive (fleet overview), Control-Room (live 3D / list ops) and Maintenance (work & diagnostics). Give the tabs a click.' },
+  { tag: 'Welcome', title: 'Welcome to OneGrid', body: 'A quick, hands-on tour of the dashboard — fleet analytics, a live 3D control room, equipment manuals, a governed AI assistant and a OneLake security plane. You can skip anytime.' },
+  { tag: 'Navigate', target: '[data-tour="tabs"]', interactive: true, hint: 'Click a tab to switch views', title: 'Four ways to work', body: 'Executive (fleet overview), Control-Room (live 3D / list ops), Maintenance (work & diagnostics) and Ontology (the data model as a graph). Give the tabs a click.' },
   { tag: 'Theme', target: '[data-tour="theme"]', interactive: true, hint: 'Click to flip Light / Dark', title: 'Light or dark', body: 'The whole app switches theme with this toggle — and remembers your choice.' },
   { persona: 'executive', tag: 'Executive', target: '[data-tour="sundial"]', interactive: true, hint: 'Click a wedge to drill into a site', title: 'Fleet Health sundial', body: 'Drill Fleet → Site → Unit → Equipment. Use the Back button, breadcrumb, or center hub to go back up. Try clicking a site wedge.' },
   { persona: 'executive', tag: 'Executive', target: '[data-tour="kpis"]', title: 'Every tile is a shortcut', body: 'Fleet Availability → outages, Critical Assets → the live map, Predicted Risks → survival/stop-probability detail, Open Work Orders → Maintenance.' },
   { persona: 'controlroom', tag: 'Control-Room', target: '[data-tour="cr-breadcrumb"]', interactive: true, hint: 'Try the Map / List toggle', title: 'Map or menu — your choice', body: 'Navigate the fleet as an interactive 3D map, or flip to List for a menu-driven site → equipment picker. Same live tags either way.' },
   { persona: 'maintenance', tag: 'Maintenance', target: '[data-tour="mnt-pills"]', interactive: true, hint: 'Pick a condition filter', title: 'Filter by condition', body: 'Healthy / Watch / Critical pills focus the list. Click an asset for its 3D model, root cause, predictions, work orders — and 👍/👎 to train future models.' },
-  { tag: 'Ask', target: '[data-tour="chat"]', interactive: true, hint: 'Open the chat', title: 'Chat with your data', body: 'Ask in plain language. It stays aware of what you\'re viewing, lets you switch AI models/providers, and every answer can be rated.' },
+  { persona: 'maintenance', tag: 'Foundry IQ', target: '[data-tour="mnt-workorders"]', title: 'Resolve with the manual', body: 'Every open work order carries a 📖 Resolve action. Foundry IQ pulls the exact procedure from the equipment manuals — grounded by Azure AI Search — and can hand it straight to the assistant. No more hunting through PDFs.' },
+  { persona: 'ontology', tag: 'Ontology', target: '[data-tour="ontology"]', title: 'The data model as a graph', body: 'See how assets, sensors, telemetry, ML scores, advisories, outages and work orders connect. Click a node to focus it, then “Ask AI about the model” to reason across the whole semantic model.' },
+  { tag: 'Governance', target: '[data-tour="governance"]', interactive: true, hint: 'Open the governance & security plane', title: 'OneLake security & governance', body: 'The shield opens the governance review plane — OneLake security roles, who can see which data, and open compliance findings across the workspace. Give it a click.' },
+  { tag: 'Ask', target: '[data-tour="chat"]', interactive: true, hint: 'Open the chat', title: 'Chat with your data', body: 'Ask in plain language. It stays aware of what you\'re viewing, can search the equipment manuals, switch AI models/providers, and every answer can be rated.' },
+  { tag: 'Fabric Data Agent', target: '[data-tour="chat-agent"]', openChat: true, title: 'Governed answers, on demand', body: 'Flip on the Fabric Data Agent and questions are answered by a governed agent that reasons over your published semantic model and writes its own queries — deeper, policy-respecting answers (with a little more thinking time). Off by default.' },
   { tag: 'You\'re set', title: 'That\'s it — you\'re ready', body: 'Re-open this tour anytime from the “?” button in the header. Happy monitoring!' },
 ];

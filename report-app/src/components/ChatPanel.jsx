@@ -271,7 +271,7 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
                     {onCopilot && copilotToken && <button onClick={clearCopilot} className="text-[9px] hover:opacity-80" style={{ color: sub }} title="Disconnect your Copilot token">disconnect</button>}
                   </div>
                   {dataAgentAvailable && (
-                    <button onClick={toggleAgentMode}
+                    <button data-tour="chat-agent" onClick={toggleAgentMode}
                       className="flex items-center gap-1.5 mt-1 text-[10px] font-bold rounded-md px-2 py-0.5 transition"
                       style={agentMode ? { background: theme.accent, color: dark ? '#06121f' : '#fff' } : { color: sub, border: `1px solid ${border}` }}
                       title="Answer directly from the published Fabric Data Agent, grounded in the OneGrid semantic model">
