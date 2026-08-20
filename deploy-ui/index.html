@@ -294,7 +294,7 @@
 
     <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:12px">
       <button class="btn secondary" style="color:var(--red);border-color:var(--red);margin-top:0" onclick="showTeardownPicker()">Tear down existing deployment</button>
-      <div class="hint">Removes the Fabric workspace + resource groups from a previous run (uses the last saved config.json). Fabric capacity is left untouched.</div>
+      <div class="hint">Removes the Fabric workspace, resource groups, and the deploy-created refresh service principal from a previous run (uses the last saved config.json). Fabric capacity is left untouched.</div>
     </div>
   </div>
 
@@ -417,7 +417,7 @@
     <div id="postActions" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <button class="btn secondary" onclick="location.reload()">New deployment</button>
       <button class="btn" id="teardownBtn" style="background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)" onclick="showTeardownPicker()">Tear down a deployment</button>
-      <div class="hint">Tear down deletes a selected Fabric workspace and the associated Azure resource groups. Your Fabric capacity is left untouched.</div>
+      <div class="hint">Tear down deletes a selected Fabric workspace, the associated Azure resource groups, and the refresh service principal this deploy created (and scrubs its saved credentials). Your Fabric capacity is left untouched.</div>
 
       <!-- teardown deployment picker -->
       <div id="teardownPicker" class="picker hidden">

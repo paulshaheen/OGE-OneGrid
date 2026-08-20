@@ -1093,6 +1093,20 @@ function Phase-Teardown {
   # Azure resource groups. Use the explicit list if supplied, else Foundry + chat agent from config.
   $rgs = if ($TeardownResourceGroups) { $TeardownResourceGroups } else { @($cfg.foundry.resourceGroup, $cfg.chatAgent.resourceGroup) }
   $rgs = $rgs | Where-Object { $_ } | Select-Object -Unique
+
+  # Discover the chat-agent app name(s) BEFORE deleting the resource groups, so we can also
+  # remove the matching refresh service principal even in a picker-driven teardown that has no
+  # config.json (the placeholder $cfg has an empty chatAgent). The container-app name IS
+  # chatAgent.appName, and its refresh SP is '<appName>-refresh-sp'. Captured now because the
+  # RG delete below is async and the container apps may be gone by the SP-cleanup step.
+  $appNames = @()
+  if ($cfg.chatAgent.appName) { $appNames += $cfg.chatAgent.appName }
+  foreach ($rg in $rgs) {
+    $found = AzTry { az containerapp list -g $rg --query "[].name" -o tsv }
+    if ($found) { $appNames += ($found -split '\r?\n' | Where-Object { $_ }) }
+  }
+  $appNames = $appNames | Where-Object { $_ } | Select-Object -Unique
+
   foreach ($rg in $rgs) {
     if (AzTry { az group show -n $rg --query name -o tsv }) {
       Log "  deleting resource group '$rg' (async)..."
@@ -1116,6 +1130,31 @@ function Phase-Teardown {
       Start-Sleep -Seconds 30
     }
     if (-not $purged) { Log "  could not purge Foundry account '$acct' yet - purge manually later: az cognitiveservices account purge --location $floc -g $frg -n $acct" "Yellow" }
+  }
+
+  # Refresh service principal(s) (Entra app registration) auto-created by Ensure-DeploySP during
+  # deploy. They live in Entra ID (not a resource group), so they survive the workspace + RG
+  # deletes above and would otherwise be orphaned. Identified by the deterministic display name
+  # '<appName>-refresh-sp' (appName discovered from config and/or the deployed container apps).
+  # A CUSTOMER-supplied fixedIdentity uses a different app and is never touched (guarded by
+  # matching the client id we persisted). Deleting the app also removes its SP + client secret.
+  $cfgClientId = if ($cfg.fixedIdentity) { $cfg.fixedIdentity.clientId } else { $null }
+  $spDeletedClientId = $null
+  foreach ($an in $appNames) {
+    $spName = "$an-refresh-sp"
+    $spAppId = AzTry { az ad app list --display-name $spName --query "[0].appId" -o tsv }
+    if (-not $spAppId) { continue }
+    # If config names a specific fixedIdentity, only delete the app that matches it (protects a
+    # customer-supplied principal). With no config (picker teardown), delete the discovered one.
+    if ($cfgClientId -and $cfgClientId -ne $spAppId) { Log "  fixedIdentity is customer-supplied ($cfgClientId) - leaving '$spName' untouched" "DarkGray"; continue }
+    az ad app delete --id $spAppId 2>$null
+    if ($LASTEXITCODE -eq 0) { Log "  deleted refresh service principal '$spName' ($spAppId)" "Green"; $spDeletedClientId = $spAppId }
+    else { Log "  could not delete app registration '$spName' ($spAppId) - remove manually: az ad app delete --id $spAppId" "Yellow" }
+  }
+  # Scrub the now-dangling refresh-SP credentials from config.json so a subsequent deploy mints
+  # a fresh identity instead of reusing dead credentials (and no orphaned secret sits on disk).
+  if ($cfg.fixedIdentity -and (-not $cfgClientId -or $cfgClientId -eq $spDeletedClientId)) {
+    try { $cfg.PSObject.Properties.Remove('fixedIdentity'); [void](Save-Config); Log "  scrubbed refresh-SP credentials from config.json" "Green" } catch { Log "  could not scrub fixedIdentity from config.json: $($_.Exception.Message)" "Yellow" }
   }
 
   if (Test-Path $stateFile) { Remove-Item $stateFile -Force -ErrorAction SilentlyContinue; Log "  removed last-deploy-state.json" }
