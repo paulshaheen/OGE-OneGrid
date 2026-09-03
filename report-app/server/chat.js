@@ -101,5 +101,22 @@ export async function proxyModels(req, res) {
   }).on('error', () => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ models: [] })); });
 }
 
+// Proxy a plain POST-JSON request straight through to the chat agent. Used by the GitHub
+// Copilot device-flow token fetcher (/api/copilot/device/start and /api/copilot/device/poll).
+export async function proxyAgentJson(req, res, bodyBuf, agentPath) {
+  const ok = await ensureAgent();
+  if (!ok) { res.writeHead(503, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Chat agent is not available.' })); }
+  const buf = bodyBuf || Buffer.alloc(0);
+  const preq = http.request(new URL(agentPath, CHAT_BASE), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(buf) },
+  }, (pres) => {
+    res.writeHead(pres.statusCode || 200, { 'Content-Type': pres.headers['content-type'] || 'application/json' });
+    pres.pipe(res);
+  });
+  preq.on('error', (e) => { if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: String(e.message || e) })); });
+  preq.end(buf);
+}
+
 // Warm the agent shortly after boot so the first message is snappy.
 export function warmAgent() { setTimeout(() => { ensureAgent().catch(() => {}); }, 1500); }

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachRealtime } from './realtime.js';
 import { resolveTarget } from './target.js';
-import { proxyChat, proxyModels, warmAgent } from './chat.js';
+import { proxyChat, proxyModels, proxyAgentJson, warmAgent } from './chat.js';
 import { isCapacityPausedError } from './fabric.js';
 import * as api from './dataApi.js';
 import * as gov from './governance.js';
@@ -139,6 +139,13 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === '/api/models' && req.method === 'GET') return proxyModels(req, res);
+  // GitHub Copilot device-flow token fetcher — proxied to the chat agent.
+  if ((url.pathname === '/api/copilot/device/start' || url.pathname === '/api/copilot/device/poll') && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => proxyAgentJson(req, res, Buffer.concat(chunks), url.pathname));
+    return;
+  }
   if (url.pathname === '/api/feedback' && req.method === 'POST') {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
