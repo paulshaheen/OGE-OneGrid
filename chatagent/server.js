@@ -64,6 +64,33 @@ function getGithubToken() {
     return execSync('gh auth token', { encoding: 'utf8', timeout: 10000 }).trim();
 }
 
+// ── GitHub Copilot device-flow sign-in ────────────────────────────────────
+// Lets a user of the DEPLOYED chat agent obtain a GitHub Copilot token from the
+// browser (no PAT paste, no server-side `gh` CLI). Standard OAuth device flow
+// against the Copilot editor client id (overridable if a deployment registers its
+// own OAuth app for the Copilot-Integration-Id). Scope read:user is enough for the
+// Copilot API. The token is handed to the same request path as getGithubToken().
+const GH_OAUTH_CLIENT_ID = process.env.GITHUB_OAUTH_CLIENT_ID || 'Iv1.b507a08c87ecfe98';
+const GH_OAUTH_SCOPE = process.env.GITHUB_OAUTH_SCOPE || 'read:user';
+async function ghDeviceStart() {
+    const r = await fetch('https://github.com/login/device/code', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'onegrid-chat-agent' },
+        body: JSON.stringify({ client_id: GH_OAUTH_CLIENT_ID, scope: GH_OAUTH_SCOPE })
+    });
+    if (!r.ok) throw new Error(`device/code ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    return r.json();
+}
+async function ghDevicePoll(deviceCode) {
+    const r = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'onegrid-chat-agent' },
+        body: JSON.stringify({ client_id: GH_OAUTH_CLIENT_ID, device_code: deviceCode, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' })
+    });
+    if (!r.ok) throw new Error(`access_token ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    return r.json();
+}
+
 // ── List chat-capable models the current Copilot token can access ─────────
 async function listCopilotModels(ghToken) {
     ghToken = (ghToken && ghToken.trim()) || getGithubToken();
@@ -873,7 +900,7 @@ const server = http.createServer(async (req, res) => {
     // CORS headers for file:// origin
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-copilot-token');
 
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -908,6 +935,53 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ default: fallback, provider: AI.provider, providers: { foundry: !!AI.endpoint, copilot: copilotServerAvailable() }, models: [], error: e.message }));
         }
+        return;
+    }
+
+    // ── GitHub Copilot device-flow sign-in (token fetcher for the Copilot option) ──
+    // Step 1: start — returns a short user code + verification URL for the browser.
+    if (req.method === 'POST' && req.url === '/api/copilot/device/start') {
+        try {
+            const d = await ghDeviceStart();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                device_code: d.device_code,
+                user_code: d.user_code,
+                verification_uri: d.verification_uri || d.verification_uri_complete,
+                verification_uri_complete: d.verification_uri_complete || '',
+                interval: d.interval || 5,
+                expires_in: d.expires_in || 900
+            }));
+        } catch (e) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: e.message }));
+        }
+        return;
+    }
+
+    // Step 2: poll — once the user authorizes in the browser, returns the token.
+    if (req.method === 'POST' && req.url === '/api/copilot/device/poll') {
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const { device_code } = JSON.parse(body || '{}');
+                if (!device_code) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'error', error: 'device_code required' })); return; }
+                const d = await ghDevicePoll(device_code);
+                if (d.access_token) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'ok', token: d.access_token }));
+                    return;
+                }
+                // GitHub returns error=authorization_pending|slow_down|expired_token|access_denied
+                const pending = (d.error === 'authorization_pending' || d.error === 'slow_down');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: pending ? 'pending' : 'error', error: d.error || 'unknown', interval: d.interval }));
+            } catch (e) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', error: e.message }));
+            }
+        });
         return;
     }
 

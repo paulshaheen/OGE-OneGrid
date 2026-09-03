@@ -185,6 +185,14 @@ header .badge::before { content:''; width:7px; height:7px; border-radius:50%; ba
                 </select>
                 <p class="setting-desc" id="modelDesc">Choose which Copilot model answers. The list reflects the models your account can access.</p>
             </div>
+            <div class="setting">
+                <label>GitHub Copilot</label>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <button type="button" id="copilotConnectBtn" onclick="startCopilotAuth()" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border,#30363d);background:#238636;color:#fff;cursor:pointer;font-size:.9em">Connect GitHub Copilot</button>
+                    <span id="copilotAuthStatus" style="font-size:.9em">Not connected</span>
+                </div>
+                <p class="setting-desc" id="copilotAuthDesc">Sign in to use your own GitHub Copilot subscription as the model backend. A one-time code will appear — enter it on github.com to authorize this assistant.</p>
+            </div>
         </div>
     </div>
 </div>
@@ -212,6 +220,79 @@ function applyPersonaUI() {
 }
 function setPersona(v) { currentPersona = v; localStorage.setItem('ea_persona', v); applyPersonaUI(); }
 
+// ── GitHub Copilot device-flow sign-in (token fetcher) ────────────────────
+let copilotToken = localStorage.getItem('ea_copilot_token') || '';
+let copilotPollTimer = null;
+function updateCopilotAuthUI() {
+    const status = document.getElementById('copilotAuthStatus');
+    const btn = document.getElementById('copilotConnectBtn');
+    if (!status || !btn) return;
+    if (copilotToken) {
+        status.textContent = '✅ Connected';
+        status.style.color = '#2ea043';
+        btn.textContent = 'Disconnect';
+        btn.style.background = '#6e7681';
+        btn.onclick = disconnectCopilot;
+    } else {
+        status.textContent = 'Not connected';
+        status.style.color = '';
+        btn.textContent = 'Connect GitHub Copilot';
+        btn.style.background = '#238636';
+        btn.onclick = startCopilotAuth;
+    }
+}
+function disconnectCopilot() {
+    copilotToken = '';
+    localStorage.removeItem('ea_copilot_token');
+    if (copilotPollTimer) { clearInterval(copilotPollTimer); copilotPollTimer = null; }
+    modelsLoaded = false;
+    updateCopilotAuthUI();
+    const desc = document.getElementById('copilotAuthDesc');
+    if (desc) desc.textContent = 'Disconnected. Sign in again to use your GitHub Copilot subscription.';
+    loadModels();
+}
+async function startCopilotAuth() {
+    const desc = document.getElementById('copilotAuthDesc');
+    const btn = document.getElementById('copilotConnectBtn');
+    try {
+        btn.disabled = true;
+        const r = await fetch(API_BASE + '/api/copilot/device/start', { method: 'POST' }).then(x => x.json());
+        if (r.error || !r.user_code) throw new Error(r.error || 'could not start sign-in');
+        try { await navigator.clipboard.writeText(r.user_code); } catch (e) {}
+        if (desc) desc.innerHTML = 'Enter code <b style="font-size:1.25em;letter-spacing:2px">' + escapeHtml(r.user_code) + '</b> (copied) at <a href="' + escapeHtml(r.verification_uri) + '" target="_blank" rel="noopener">' + escapeHtml(r.verification_uri) + '</a>, then wait here…';
+        window.open(r.verification_uri, '_blank', 'noopener');
+        const started = Date.now();
+        const intervalMs = Math.max(2, (r.interval || 5)) * 1000;
+        if (copilotPollTimer) clearInterval(copilotPollTimer);
+        copilotPollTimer = setInterval(async () => {
+            if (Date.now() - started > (r.expires_in || 900) * 1000) {
+                clearInterval(copilotPollTimer); copilotPollTimer = null; btn.disabled = false;
+                if (desc) desc.textContent = 'Sign-in code expired. Click Connect to try again.';
+                return;
+            }
+            try {
+                const p = await fetch(API_BASE + '/api/copilot/device/poll', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_code: r.device_code })
+                }).then(x => x.json());
+                if (p.status === 'ok' && p.token) {
+                    clearInterval(copilotPollTimer); copilotPollTimer = null; btn.disabled = false;
+                    copilotToken = p.token; localStorage.setItem('ea_copilot_token', copilotToken);
+                    updateCopilotAuthUI();
+                    if (desc) desc.textContent = 'Connected. Your GitHub Copilot subscription now powers the assistant.';
+                    modelsLoaded = false; loadModels();
+                } else if (p.status === 'error') {
+                    clearInterval(copilotPollTimer); copilotPollTimer = null; btn.disabled = false;
+                    if (desc) desc.textContent = 'Sign-in failed (' + (p.error || 'error') + '). Click Connect to retry.';
+                }
+            } catch (e) { /* transient — keep polling */ }
+        }, intervalMs);
+    } catch (e) {
+        btn.disabled = false;
+        if (desc) desc.textContent = 'Could not start sign-in: ' + e.message;
+    }
+}
+
 // ── Model selector ──────────────────────────────────────────────────────
 let currentModel = localStorage.getItem('ea_model') || '';
 let modelsLoaded = false;
@@ -219,7 +300,10 @@ function setModel(v) { currentModel = v; localStorage.setItem('ea_model', v); }
 async function loadModels() {
     if (modelsLoaded) return;
     try {
-        const resp = await fetch(API_BASE + '/api/models');
+        const _mh = {};
+        let _murl = API_BASE + '/api/models';
+        if (copilotToken) { _murl += '?provider=copilot'; _mh['x-copilot-token'] = copilotToken; }
+        const resp = await fetch(_murl, { headers: _mh });
         const data = await resp.json();
         const sel = document.getElementById('modelSelect');
         if (!sel) return;
@@ -245,7 +329,7 @@ async function loadModels() {
         if (desc) desc.textContent = 'Could not load model list. Using server default.';
     }
 }
-function openSettings() { document.getElementById('settingsOverlay').classList.add('open'); applyPersonaUI(); loadModels(); }
+function openSettings() { document.getElementById('settingsOverlay').classList.add('open'); applyPersonaUI(); updateCopilotAuthUI(); loadModels(); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('open'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
 applyPersonaUI();
@@ -500,7 +584,7 @@ async function sendMessage() {
         const resp = await fetch(API_BASE + '/api/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: msg, history: history.slice(-10), persona: currentPersona, model: currentModel})
+            body: JSON.stringify({message: msg, history: history.slice(-10), persona: currentPersona, model: currentModel, provider: copilotToken ? 'copilot' : undefined, copilotToken: copilotToken || undefined})
         });
 
         const reader = resp.body.getReader();
