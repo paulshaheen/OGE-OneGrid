@@ -16,6 +16,7 @@
 
  Usage:   ./deploy.ps1 -ConfigPath ./config.json
           ./deploy.ps1 -ConfigPath ./config.json -Only foundry,chatagent   # subset
+          ./deploy.ps1 -ConfigPath ./config.json -RegisterProviders        # auto-register required providers
 ================================================================================
 #>
 [CmdletBinding()]
@@ -26,6 +27,8 @@ param(
   [switch]$Interactive,                  # discover + prompt for tenant/subscription/capacity/region/hosting, then deploy
   [switch]$Teardown,                     # remove the Fabric workspace + Azure resource groups created by this deploy
   [switch]$DataPlane,                     # opt-in bolt-on: wire the PI->Fabric forwarder (bolt-ons/data-plane) after deploy
+  [switch]$RegisterProviders,             # auto-register any required Azure resource providers that are NotRegistered
+  [switch]$SkipPreflight,                 # skip the provider + permission preflight checks
   [string]$TeardownWorkspaceId,          # optional: tear down THIS specific workspace id (else resolved by config name)
   [string[]]$TeardownResourceGroups      # optional: resource groups to delete during teardown (else foundry+chatAgent from config)
 )
@@ -1537,6 +1540,76 @@ function Phase-Governance {
   } catch { Log "  could not write governance-manifest.json: $($_.Exception.Message)" "Yellow" }
 }
 
+# ============================ PHASE: preflight ================================
+# Verifies the Azure resource providers the deploy needs are registered, optionally
+# registers them (-RegisterProviders / config.preflight.registerProviders=true), and
+# reports the signed-in identity's role assignments so a permission gap is visible BEFORE
+# 20-40 min of provisioning. Non-fatal by design: it warns and continues so an operator
+# who has rights scoped at a resource-group (not subscription) level isn't hard-blocked.
+function Phase-Preflight {
+  Log "PHASE preflight: Azure providers + account permissions"
+  $auto = $RegisterProviders -or ($cfg.preflight -and $cfg.preflight.registerProviders -eq $true)
+
+  # Provider -> which phase(s) need it. Only the ones whose phase will actually run are checked.
+  $providerNeeds = @(
+    @{ ns='Microsoft.CognitiveServices';  phases=@('foundry');   why='Azure AI Foundry (model backend)' }
+    @{ ns='Microsoft.ContainerRegistry';  phases=@('chatagent'); why='build the chat agent image' }
+    @{ ns='Microsoft.App';                phases=@('chatagent'); why='Azure Container Apps host' }
+    @{ ns='Microsoft.OperationalInsights';phases=@('chatagent'); why='Container Apps environment logs' }
+  )
+  $notReady = @()
+  foreach ($p in $providerNeeds) {
+    if (-not ($p.phases | Where-Object { Should $_ })) { continue }   # phase won't run -> provider irrelevant
+    $reg = AzTry { az provider show -n $p.ns --query registrationState -o tsv }
+    if (-not $reg) { $reg = 'Unknown' }
+    if ($reg -eq 'Registered') { Log "  provider $($p.ns): Registered" "Green"; continue }
+    if ($auto) {
+      Log "  provider $($p.ns): $reg -> registering (needed to $($p.why))..." "Yellow"
+      az provider register -n $p.ns -o none 2>$null
+      $done = $false
+      for ($i=0; $i -lt 30; $i++) {                    # up to ~5 min; registration is usually < 2 min
+        Start-Sleep -Seconds 10
+        if ((AzTry { az provider show -n $p.ns --query registrationState -o tsv }) -eq 'Registered') { $done = $true; break }
+      }
+      if ($done) { Log "  provider $($p.ns): Registered" "Green" }
+      else { Log "  provider $($p.ns): still not Registered after wait - the '$($p.phases -join "/")' phase may fail" "Yellow"; $notReady += $p.ns }
+    } else {
+      Log "  provider $($p.ns): $reg (needed to $($p.why))" "Yellow"
+      $notReady += $p.ns
+    }
+  }
+  if ($notReady.Count -and -not $auto) {
+    Log "  $($notReady.Count) provider(s) not registered. Re-run with -RegisterProviders (or set preflight.registerProviders=true), or register manually:" "Yellow"
+    foreach ($ns in ($notReady | Select-Object -Unique)) { Log "    az provider register -n $ns" "Yellow" }
+  }
+
+  # ---- Permission level of the signed-in identity at subscription scope.
+  $sub = $cfg.subscriptionId
+  $acct = AzTry { az account show -o json }
+  $userName = $null; $userType = $null
+  if ($acct) { $o = $acct | ConvertFrom-Json; $userName = $o.user.name; $userType = $o.user.type }
+  Log "  signed in as: $userName ($userType) on subscription $sub"
+
+  $assignee = AzTry { az ad signed-in-user show --query id -o tsv }          # interactive user
+  if (-not $assignee -and $userName) { $assignee = AzTry { az ad sp show --id $userName --query id -o tsv } }  # service principal
+  $roles = @()
+  if ($assignee) {
+    $rj = AzTry { az role assignment list --assignee $assignee --scope "/subscriptions/$sub" --include-inherited --query "[].roleDefinitionName" -o json }
+    if ($rj) { $roles = @($rj | ConvertFrom-Json) }
+  }
+  if ($roles.Count) {
+    Log "  subscription roles: $(($roles | Sort-Object -Unique) -join ', ')"
+    $canCreate = @($roles | Where-Object { $_ -in @('Owner','Contributor') }).Count -gt 0
+    $canRbac   = @($roles | Where-Object { $_ -in @('Owner','User Access Administrator','Role Based Access Control Administrator') }).Count -gt 0
+    if ($canCreate) { Log "  create rights: OK (Owner/Contributor)" "Green" }
+    else { Log "  WARNING: no Owner/Contributor at subscription scope - creating the RG/ACR/Foundry/Container App may be denied (you may still have rights scoped to an existing resource group)." "Yellow" }
+    if ($canRbac) { Log "  role-assignment rights: OK" "Green" }
+    else { Log "  WARNING: no Owner/User Access Administrator - the identity grants in the 'chatagent'/'permissions' phases may fail (role-assignment writes need it)." "Yellow" }
+  } else {
+    Log "  could not read role assignments (needs Microsoft.Authorization/*/read, or the identity is a guest) - skipping permission summary" "Yellow"
+  }
+}
+
 # ============================ run =============================================
 if ($Teardown) { Phase-Teardown; return }
 
@@ -1553,6 +1626,14 @@ $phases = [ordered]@{
   chatagent   = { Phase-ChatAgent }
   permissions = { Phase-Permissions }
 }
+
+# Preflight runs on every deploy invocation (including subset -Only re-runs) so provider /
+# permission gaps surface first. Skipped for the standalone data-plane bolt-on and -SkipPreflight.
+if (-not $SkipPreflight -and -not ($Only -contains 'dataplane' -and $Only.Count -eq 1)) {
+  try { Phase-Preflight }
+  catch { $script:phaseErrors += "preflight : $($_.Exception.Message)"; Log "PHASE preflight ERROR: $($_.Exception.Message)" "Red" }
+}
+
 foreach ($name in $phases.Keys) {
   if (Should $name) {
     try { & $phases[$name] }

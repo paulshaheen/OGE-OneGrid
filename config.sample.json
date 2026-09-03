@@ -4,6 +4,11 @@
   "subscriptionId": "",
   "location": "eastus2",
 
+  "//preflight": "OPTIONAL. Startup checks. registerProviders=true auto-registers required Azure resource providers (Microsoft.CognitiveServices, Microsoft.ContainerRegistry, Microsoft.App, Microsoft.OperationalInsights) if they are NotRegistered - same as passing -RegisterProviders. The preflight also reports the signed-in account's subscription role assignments so a permission gap is visible before provisioning.",
+  "preflight": {
+    "registerProviders": false
+  },
+
   "fabric": {
     "//capacityId": "REQUIRED. Existing Fabric capacity resource id or capacity GUID. A workspace cannot be created without a capacity (F-SKU or Trial).",
     "capacityId": "",
