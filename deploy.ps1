@@ -251,19 +251,45 @@ function Should($p){ return (-not $Only) -or ($Only -contains $p) }
 # ============================ PHASE: workspace ================================
 function Phase-Workspace {
   Log "PHASE workspace: creating '$($cfg.fabric.workspaceName)'"
+  $state.WorkspaceReady = $false
   $existing = (FGet "workspaces").value | Where-Object { $_.displayName -eq $cfg.fabric.workspaceName }
   if ($existing) { $ws = $existing[0]; Log "  reusing existing workspace $($ws.id)" "Yellow" }
   else {
     $resp = FPost "workspaces" @{ displayName=$cfg.fabric.workspaceName }
     $ws = FWait $resp
   }
-  # assign capacity
+  $state.WorkspaceId = $ws.id
+
+  # Fabric items (Lakehouse/Eventhouse/KQL/...) require the workspace to sit on an ACTIVE
+  # capacity. Guard here so a missing / paused / inaccessible capacity fails fast with a
+  # clear message instead of surfacing as a cryptic Lakehouse-create error in the core phase.
+  $capList = $null
+  try { $capList = @((FGet "capacities").value) } catch { Log "  note: could not list Fabric capacities ($($_.Exception.Message))" "Yellow" }
+  $capSummary = if ($capList) { (($capList | ForEach-Object { "$($_.displayName) [$($_.sku), $($_.state)]" }) -join '; ') } else { '(none visible - you may not be a capacity admin in this tenant)' }
+
   $cap = $cfg.fabric.capacityId
   if ($cap) {
-    try { FPost "workspaces/$($ws.id)/assignToCapacity" @{ capacityId = $cap } | Out-Null; Log "  assigned capacity" }
-    catch { Log "  capacity assign: $($_.Exception.Message)" "Yellow" }
+    $capGuid = ($cap -replace '.*/','')
+    $match = if ($capList) { $capList | Where-Object { $_.id -eq $cap -or $_.id -eq $capGuid -or $_.displayName -eq $cap } | Select-Object -First 1 } else { $null }
+    if ($capList -and -not $match) {
+      throw "Configured Fabric capacity '$cap' is not among the capacities you can administer. Available: $capSummary. Fix fabric.capacityId in config and re-run."
+    }
+    if ($match -and $match.state -and $match.state -ne 'Active') {
+      throw "Configured Fabric capacity '$($match.displayName)' is '$($match.state)', not Active. Resume it (Azure portal -> Microsoft Fabric capacity -> Resume), then re-run."
+    }
+    try { FPost "workspaces/$($ws.id)/assignToCapacity" @{ capacityId = $cap } | Out-Null; Log "  assigned capacity$(if($match){" ($($match.displayName), $($match.sku))"})" }
+    catch { throw "Could not assign Fabric capacity '$cap' to the workspace: $($_.Exception.Message). Confirm it is Active and you are a capacity admin, then re-run." }
   }
-  $state.WorkspaceId = $ws.id
+
+  # Confirm the workspace actually has a capacity now - covers a blank capacityId that reuses a
+  # workspace which already had one, and an assign call that didn't take effect.
+  $assigned = $null
+  try { $assigned = (FGet "workspaces/$($ws.id)").capacityId } catch {}
+  if (-not $assigned) {
+    throw "Workspace '$($cfg.fabric.workspaceName)' has no active Fabric capacity, so Lakehouse/Eventhouse items cannot be created. Set fabric.capacityId to an Active F8+ (or Trial) capacity and re-run. Available: $capSummary."
+  }
+
+  $state.WorkspaceReady = $true
   Log "  workspace = $($ws.id)" "Green"
 }
 
@@ -1636,6 +1662,13 @@ if (-not $SkipPreflight -and -not ($Only -contains 'dataplane' -and $Only.Count 
 
 foreach ($name in $phases.Keys) {
   if (Should $name) {
+    # If the workspace phase ran but its capacity guard failed, the workspace has no active
+    # Fabric capacity - skip the phases that create/consume Fabric items so the deploy stops
+    # cleanly on the clear capacity error instead of cascading cryptic item-create failures.
+    $fabricDependent = @('core','artifacts','data','semantic','oge','governance','dataagent')
+    if (($name -in $fabricDependent) -and $state.ContainsKey('WorkspaceReady') -and (-not $state.WorkspaceReady)) {
+      Log "skip phase $name - workspace has no active Fabric capacity (fix fabric.capacityId and re-run)" "Yellow"; continue
+    }
     try { & $phases[$name] }
     catch { $script:phaseErrors += "$name : $($_.Exception.Message)"; Log "PHASE $name ERROR: $($_.Exception.Message)" "Red" }
   }
