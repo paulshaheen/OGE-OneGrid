@@ -167,9 +167,20 @@ const server = http.createServer(async (req, res) => {
       }
     })();
 
-    // Cognitive Services / App registration providers
-    const cs = await az('provider show -n Microsoft.CognitiveServices --query registrationState -o tsv');
-    add('Microsoft.CognitiveServices provider', (cs.ok && /Registered/i.test(cs.stdout)) ? 'ok' : 'warn', cs.stdout || 'will be registered on demand');
+    // Required Azure resource providers. The deploy auto-registers any that are NotRegistered
+    // in preflight, so NotRegistered is a 'warn' (not a blocker). Exact-match the state:
+    // /Registered/.test('NotRegistered') is TRUE (substring), which previously showed a
+    // misleading green check next to 'NotRegistered'.
+    {
+      const needed = ['Microsoft.CognitiveServices', 'Microsoft.ContainerRegistry', 'Microsoft.App', 'Microsoft.OperationalInsights'];
+      const notReg = [];
+      for (const ns of needed) {
+        const pr = await az(`provider show -n ${ns} --query registrationState -o tsv`);
+        if (!/^Registered$/i.test((pr.stdout || '').trim())) notReg.push(ns.replace('Microsoft.', ''));
+      }
+      if (notReg.length === 0) add('Azure resource providers', 'ok', 'all required providers registered');
+      else add('Azure resource providers', 'warn', `${notReg.join(', ')} NotRegistered - the deploy auto-registers these (needs subscription Contributor)`);
+    }
 
     // deploy.ps1 present
     add('deploy.ps1', fs.existsSync(path.join(ROOT, 'deploy.ps1')) ? 'ok' : 'fail', fs.existsSync(path.join(ROOT, 'deploy.ps1')) ? 'found' : 'missing');
