@@ -748,8 +748,21 @@ function Save-Config {
   try { [IO.File]::WriteAllText($p, ($cfg | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding($false))); $true }
   catch { Log "  could not persist config ($p): $($_.Exception.Message)" "Yellow"; $false }
 }
+# Distill a raw az CLI stderr/stdout blob down to the meaningful error line(s) so the
+# deploy log shows the ACTUAL Azure reason (provider not registered, policy denial, quota,
+# region capacity, RBAC) instead of a generic "subdomain unavailable / did not build".
+function Get-LastAzError($raw) {
+  if (-not $raw) { return $null }
+  $lines = ($raw -split "`r?`n") | Where-Object { $_ -match '\S' }
+  if (-not $lines) { return $null }
+  $err = $lines | Where-Object { $_ -match 'ERROR|Code:|Denied|Forbidden|Unauthor|Quota|not registered|RequestDisallowedByPolicy|Policy|SpecialFeature|SubscriptionNotFound|InvalidResource|Conflict|Sku' }
+  $pick = if ($err) { $err } else { $lines }
+  return (($pick | Select-Object -Last 4 | ForEach-Object { $_.Trim() }) -join ' | ')
+}
+
+$script:FoundryLastError = $null
 function New-FoundryAccount($name, $rg) {
-  az cognitiveservices account create -n $name -g $rg -l $cfg.location --kind AIServices --sku S0 --custom-domain $name --assign-identity --yes -o none 2>&1 | Out-Null
+  $script:FoundryLastError = (az cognitiveservices account create -n $name -g $rg -l $cfg.location --kind AIServices --sku S0 --custom-domain $name --assign-identity --yes -o none 2>&1 | Out-String)
   return ($LASTEXITCODE -eq 0)
 }
 
@@ -765,7 +778,8 @@ function Phase-Foundry {
     $ok = New-FoundryAccount $acct $rg
     if (-not $ok) {
       # Retry once: the soft-deleted account may have only just become purgeable.
-      Log "  Foundry account create failed - purging any same-named soft-deleted account and retrying..." "Yellow"
+      Log "  Foundry account create failed: $(Get-LastAzError $script:FoundryLastError)" "Yellow"
+      Log "  purging any same-named soft-deleted account and retrying..." "Yellow"
       [void](Purge-SoftDeletedFoundry $acct)
       $ok = New-FoundryAccount $acct $rg
     }
@@ -775,16 +789,18 @@ function Phase-Foundry {
     $tries = 0
     while (-not $ok -and $tries -lt 3) {
       $tries++
+      Log "  Foundry create failed: $(Get-LastAzError $script:FoundryLastError)" "Yellow"
       $base = ($cfg.foundry.accountName -replace '-[0-9]{3,4}$','')
       $acct = "$base-$(Get-Random -Minimum 1000 -Maximum 9999)"
-      Log "  subdomain unavailable - falling back to fresh Foundry name '$acct'" "Yellow"
+      Log "  retrying with a fresh Foundry name '$acct'" "Yellow"
       $ok = New-FoundryAccount $acct $rg
       if ($ok) { $cfg.foundry.accountName = $acct; [void](Save-Config); Log "  updated config.foundry.accountName -> '$acct'" "Green" }
     }
   }
   $state.FoundryEndpoint = AzTry { az cognitiveservices account show -n $acct -g $rg --query properties.endpoint -o tsv }
   if (-not $state.FoundryEndpoint) {
-    throw "Foundry account '$acct' has no endpoint after fallback attempts. Set a different foundry.accountName in config and re-run: deploy.ps1 -Only foundry,chatagent,permissions."
+    $why = Get-LastAzError $script:FoundryLastError
+    throw "Foundry account '$acct' could not be created$(if($why){" - Azure error: $why"}). Common causes: Microsoft.CognitiveServices provider not registered, an Azure Policy blocking AIServices, missing RBAC (Cognitive Services Contributor), or S0 AIServices capacity in '$($cfg.location)'. Fix the cause (or set a different foundry.accountName / location in config) and re-run: deploy.ps1 -Only foundry,chatagent,permissions."
   }
   foreach ($m in $cfg.foundry.models) {
     try {
@@ -925,7 +941,13 @@ function Phase-ChatAgent {
   $tag = 'v' + (Get-Date -f 'yyyyMMddHHmmss')
   $imageRef = "$acrName.azurecr.io/$app`:$tag"
   Log "  creating registry '$acrName' + building dashboard image (several minutes)..."
-  az acr create -n $acrName -g $rg -l $cfg.location --sku Basic --admin-enabled true -o none 2>$null
+  $acrCreateErr = (az acr create -n $acrName -g $rg -l $cfg.location --sku Basic --admin-enabled true -o none 2>&1 | Out-String)
+  if ($LASTEXITCODE -ne 0) {
+    $state.ChatAgentFailed = $true
+    Log "  ACR registry create FAILED: $(Get-LastAzError $acrCreateErr)" "Red"
+    Log "  (check the Microsoft.ContainerRegistry provider is registered and you have rights in '$rg') - chat agent NOT deployed. Re-run: deploy.ps1 -Only chatagent,permissions" "Red"
+    return
+  }
   $buildLog = Join-Path $env:TEMP "pm_acrbuild_$tag.log"
   $bjob = Start-Job -ScriptBlock {
     param($acr,$app,$tag,$here,$log)
@@ -938,12 +960,29 @@ function Phase-ChatAgent {
     $st = AzTry { az acr task list-runs --registry $acrName --top 1 --query "[0].status" -o tsv }
     if ($st -eq 'Succeeded') { $built = $true; break }
     if ($st -in @('Failed','Canceled','Error','Timeout')) { Log "  ACR build $st (log: $buildLog)" "Red"; break }
+    # If the build client (background job) has exited, stop waiting instead of polling for the
+    # full 25 min: this happens when 'az acr build' failed before it ever queued a run (e.g.
+    # provider not registered, context upload rejected), which otherwise shows status= forever.
+    if ((Get-Job -Id $bjob.Id -ErrorAction SilentlyContinue).State -in @('Completed','Failed','Stopped')) {
+      $st = AzTry { az acr task list-runs --registry $acrName --top 1 --query "[0].status" -o tsv }
+      if ($st -eq 'Succeeded') { $built = $true }
+      else { Log "  acr build client exited without a successful run (last status=$([string]$st))" "Red" }
+      break
+    }
     if ($i % 3 -eq 0) { Log "  ...building image ($([int]($i*20))s elapsed, status=$([string]$st))" }
   }
   Stop-Job $bjob -ErrorAction SilentlyContinue; Remove-Job $bjob -Force -ErrorAction SilentlyContinue
   if (-not $built) {
     $state.ChatAgentFailed = $true
-    Log "  dashboard image did not build - chat agent NOT deployed. Re-run: deploy.ps1 -Only chatagent,permissions" "Red"
+    Log "  dashboard image did not build - chat agent NOT deployed." "Red"
+    $tail = if (Test-Path $buildLog) { Get-Content $buildLog -Tail 25 -ErrorAction SilentlyContinue } else { $null }
+    if ($tail) {
+      Log "  --- acr build log (last lines, full log: $buildLog) ---" "Red"
+      foreach ($l in $tail) { if ($l -and $l.Trim()) { Log "    $($l.TrimEnd())" "Red" } }
+    } else {
+      Log "  (no build output at $buildLog - 'az acr build' likely never started; verify the Microsoft.ContainerRegistry provider is registered and Docker context under '$Here' is valid)" "Red"
+    }
+    Log "  Re-run: deploy.ps1 -Only chatagent,permissions" "Red"
     return
   }
   Log "  dashboard image built: $imageRef" "Green"
