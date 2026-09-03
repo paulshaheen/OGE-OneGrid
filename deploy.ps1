@@ -142,7 +142,9 @@ function FWait($resp){
 # Build a definition body from a local exported item folder, rebinding source IDs.
 function BuildDefinition($folder, $map) {
   $parts = @()
-  Get-ChildItem $folder -Recurse -File | ForEach-Object {
+  # .schedules is a Git-integration-only artifact (schema gitIntegration/schedules), NOT a
+  # valid item-definition part - including it makes the Fabric createItem API return 400.
+  Get-ChildItem $folder -Recurse -File | Where-Object { $_.Name -ne '.schedules' } | ForEach-Object {
     $rel = $_.FullName.Substring($folder.Length).TrimStart('\','/').Replace('\','/')
     $bytes = [IO.File]::ReadAllBytes($_.FullName)
     # Rebind IDs on text parts only.
@@ -410,9 +412,25 @@ function Phase-Artifacts {
   }
   # Pipeline(s)
   Get-ChildItem (Join-Path $Here "fabric\pipelines") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-    $def = BuildDefinition $_.FullName $map
-    try { UpsertItem $ws "dataPipelines" $_.Name $def | Out-Null; Log "  pipeline: $($_.Name)" }
-    catch { Log "  pipeline $($_.Name) FAILED: $($_.Exception.Message)" "Yellow" }
+    $pdir = $_
+    $def = BuildDefinition $pdir.FullName $map
+    try {
+      $item = UpsertItem $ws "dataPipelines" $pdir.Name $def
+      Log "  pipeline: $($pdir.Name)"
+      # Apply the daily schedule from .schedules (a git-only file, excluded from the definition
+      # above). Best-effort: a scheduler hiccup must not fail the phase.
+      $schedFile = Join-Path $pdir.FullName ".schedules"
+      if ($item -and $item.id -and (Test-Path $schedFile)) {
+        try {
+          $sched = (Get-Content $schedFile -Raw | ConvertFrom-Json).schedules | Select-Object -First 1
+          if ($sched -and $sched.configuration) {
+            FPost "workspaces/$ws/items/$($item.id)/jobs/Pipeline/schedules" @{ enabled=[bool]$sched.enabled; configuration=$sched.configuration } | Out-Null
+            Log "    pipeline schedule applied ($($sched.configuration.type))"
+          }
+        } catch { Log "    pipeline schedule skipped: $($_.Exception.Message)" "DarkGray" }
+      }
+    }
+    catch { Log "  pipeline $($pdir.Name) FAILED: $($_.Exception.Message)" "Yellow" }
   }
   # KQL dashboards (the real-time report). Rebind eventhouse/KQL-DB ids via $map.
   Get-ChildItem (Join-Path $Here "fabric\kqldashboards") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
