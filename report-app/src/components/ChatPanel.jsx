@@ -132,42 +132,52 @@ export default function ChatPanel({ theme, persona: pagePersona }) {
       if (r.error || !r.user_code) throw new Error(r.error || 'could not start sign-in');
       try { await navigator.clipboard.writeText(r.user_code); } catch { /* ignore */ }
       setDeviceInfo({ user_code: r.user_code, verification_uri: r.verification_uri });
-      setDeviceMsg('Code copied. Authorize on GitHub, then wait here…');
       window.open(r.verification_uri, '_blank', 'noopener');
       const started = Date.now();
-      const intervalMs = Math.max(2, r.interval || 5) * 1000;
-      if (devicePollRef.current) clearInterval(devicePollRef.current);
-      devicePollRef.current = setInterval(async () => {
+      // Self-scheduling poll: honor GitHub's 'slow_down' by backing off (per RFC 8628) so a
+      // rate-limit can never wedge the flow, and show a live elapsed timer so it's clearly working.
+      let delayMs = Math.max(5, r.interval || 5) * 1000;
+      const poll = async () => {
+        const elapsed = Math.floor((Date.now() - started) / 1000);
         if (Date.now() - started > (r.expires_in || 900) * 1000) {
-          clearInterval(devicePollRef.current); devicePollRef.current = null;
-          setDeviceBusy(false); setDeviceMsg('Code expired — try again.'); setDeviceInfo(null); return;
+          devicePollRef.current = null;
+          setDeviceBusy(false); setDeviceMsg('Code expired — click Sign in to try again.'); setDeviceInfo(null); return;
         }
+        setDeviceMsg(`Authorize on GitHub, then wait here… (${elapsed}s)`);
+        let p = null;
         try {
-          const p = await fetch('/api/copilot/device/poll', {
+          p = await fetch('/api/copilot/device/poll', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ device_code: r.device_code }),
           }).then((x) => x.json());
-          if (p.status === 'ok' && p.token) {
-            clearInterval(devicePollRef.current); devicePollRef.current = null;
-            setCopilotToken(p.token);
-            try { localStorage.setItem('pm.copilot.token', p.token); localStorage.setItem('pm.chat.provider', 'copilot'); } catch { /* ignore */ }
-            setProvider('copilot'); setDeviceBusy(false); setDeviceInfo(null); setDeviceMsg(''); setTokenPrompt(false);
-          } else if (p.status === 'error') {
-            clearInterval(devicePollRef.current); devicePollRef.current = null;
-            setDeviceBusy(false); setDeviceMsg('Sign-in failed (' + (p.error || 'error') + ').'); setDeviceInfo(null);
-          }
-        } catch { /* transient — keep polling */ }
-      }, intervalMs);
+        } catch { /* transient network — keep polling */ }
+        if (p && p.status === 'ok' && p.token) {
+          devicePollRef.current = null;
+          setCopilotToken(p.token);
+          try { localStorage.setItem('pm.copilot.token', p.token); localStorage.setItem('pm.chat.provider', 'copilot'); } catch { /* ignore */ }
+          setProvider('copilot'); setDeviceBusy(false); setDeviceInfo(null); setDeviceMsg(''); setTokenPrompt(false);
+          return;
+        }
+        // Fatal errors only (not the expected pending/slow_down); back off on slow_down.
+        if (p && p.error && p.error !== 'authorization_pending' && p.error !== 'slow_down') {
+          devicePollRef.current = null;
+          setDeviceBusy(false); setDeviceMsg('Sign-in failed (' + p.error + ').'); setDeviceInfo(null); return;
+        }
+        if (p && p.error === 'slow_down') { delayMs = (p.interval ? p.interval * 1000 : delayMs + 5000); }
+        devicePollRef.current = setTimeout(poll, delayMs);
+      };
+      if (devicePollRef.current) clearTimeout(devicePollRef.current);
+      devicePollRef.current = setTimeout(poll, delayMs);
     } catch (e) {
       setDeviceBusy(false); setDeviceMsg('Could not start sign-in: ' + (e.message || e));
     }
   };
   const clearCopilot = () => {
-    if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
+    if (devicePollRef.current) { clearTimeout(devicePollRef.current); devicePollRef.current = null; }
     setCopilotToken(''); setProvider(''); setDeviceInfo(null); setDeviceMsg(''); setDeviceBusy(false);
     try { localStorage.removeItem('pm.copilot.token'); localStorage.setItem('pm.chat.provider', ''); } catch { /* ignore */ }
   };
-  useEffect(() => () => { if (devicePollRef.current) clearInterval(devicePollRef.current); }, []);
+  useEffect(() => () => { if (devicePollRef.current) clearTimeout(devicePollRef.current); }, []);
   const currentModel = models.find((m) => m.id === model);
   const byVendor = useMemo(() => {
     const g = {};
