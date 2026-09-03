@@ -1690,6 +1690,20 @@ function Phase-Preflight {
 # ============================ run =============================================
 if ($Teardown) { Phase-Teardown; return }
 
+# Targeted re-runs (-Only) depend on outputs of earlier phases (e.g. chatagent needs the
+# workspace id, Foundry endpoint and Kusto uri). Prime $state from the previous deploy so
+# those phases work without re-running the whole pipeline.
+if ($Only) {
+  $lsp = Join-Path $Here 'last-deploy-state.json'
+  if (Test-Path $lsp) {
+    try {
+      $prev = Get-Content $lsp -Raw | ConvertFrom-Json
+      $prev.PSObject.Properties | ForEach-Object { if ($null -ne $_.Value -and -not $state.ContainsKey($_.Name)) { $state[$_.Name] = $_.Value } }
+      Log "primed state from last-deploy-state.json (targeted -Only run)" "DarkGray"
+    } catch { Log "could not read last-deploy-state.json: $($_.Exception.Message)" "Yellow" }
+  }
+}
+
 $phases = [ordered]@{
   workspace   = { Phase-Workspace }
   core        = { Phase-Core }

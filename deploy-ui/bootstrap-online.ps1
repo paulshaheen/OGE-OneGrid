@@ -65,6 +65,14 @@ try {
 
 if ($downloaded) {
   Step 2 'Extracting (clean)'
+  # Preserve deploy artifacts across the clean wipe so targeted re-runs (e.g.
+  # deploy.ps1 -Only chatagent,permissions) and teardown still find the prior deployment.
+  $preserve = @('config.json','last-deploy-state.json','governance-manifest.json')
+  $backup = @{}
+  foreach ($f in $preserve) {
+    $src = Join-Path $extractRoot $f
+    if (Test-Path $src) { try { $backup[$f] = [IO.File]::ReadAllBytes($src) } catch {} }
+  }
   # Always wipe any previous extraction so a partial or stale copy can never be reused.
   if (Test-Path $extractRoot) { Remove-Item $extractRoot -Recurse -Force -ErrorAction SilentlyContinue }
   if (Test-Path $extractRoot) {
@@ -82,6 +90,10 @@ if ($downloaded) {
     if ($found) { $extractRoot = Split-Path (Split-Path $found.FullName -Parent) -Parent }
   }
   if (-not (Test-Complete $extractRoot)) { Die "extraction was incomplete under $extractRoot (missing deploy.ps1 or fabric\notebooks). Delete $Home_ and run this again." }
+  # Restore the preserved deploy artifacts into the fresh extraction.
+  foreach ($f in $backup.Keys) {
+    try { [IO.File]::WriteAllBytes((Join-Path $extractRoot $f), $backup[$f]); Info "kept $f from the previous install" } catch {}
+  }
   Ok "extracted to $extractRoot"
 }
 
