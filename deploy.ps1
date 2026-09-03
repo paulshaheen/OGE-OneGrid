@@ -404,17 +404,35 @@ function Phase-Artifacts {
     $SRC.KustoHost   = (([Uri]$state.KustoUri).Host -replace '\.fabric\.microsoft\.com$','')
   }
   # Notebooks (idempotent; _export_data and _load_data are deploy helpers, not app notebooks)
+  $nbIds = @{}   # displayName -> new notebook item id (to rebind pipeline references)
   Get-ChildItem (Join-Path $Here "fabric\notebooks") -Directory | ForEach-Object {
     $name = $_.Name
     if ($name -in @('_export_data','_load_data')) { return }
     $def = BuildNotebookDefinition $_.FullName $map
-    try { UpsertItem $ws "notebooks" $name $def | Out-Null; Log "  notebook: $name" }
+    try { $nb = UpsertItem $ws "notebooks" $name $def; if ($nb -and $nb.id) { $nbIds[$name] = $nb.id }; Log "  notebook: $name" }
     catch { Log "  notebook $name FAILED: $($_.Exception.Message)" "Yellow" }
+  }
+  # Pipeline(s). The exported pipeline hard-codes SOURCE notebook item IDs, and Fabric validates
+  # notebook references at CREATE time - so each must be rebound to the freshly-created notebook
+  # or the create returns 400. Source notebook id -> notebook display name (activity in comment):
+  $pipelineNotebookMap = @{
+    '8f8bfeb7-ef65-4d60-bb3d-2157e3a00fd4' = 'Phase-LongTerm-Survival'       # 'Survival Analysis'
+    '4de47a90-3b03-4912-b9cc-ecfce784e21d' = 'Phase-LongTerm-Cox'            # 'AKKR'
+    '125496e4-a588-4f60-9bb6-0ed66d7d316c' = 'SmartSignal-Anomaly-Detection' # 'Smart Signal New'
+    '0e48c702-403f-4423-8cb3-cb01b40a6560' = 'Phase3-Predictive-Model'       # 'Short Term GBM'
+    'a8c1f0b5-44ca-4a3c-acc7-1506cb5bcd67' = 'Phase5-Daily-Narrative'        # 'Narrate'
+  }
+  $pipeMap = @{}
+  foreach ($k in $map.Keys) { $pipeMap[$k] = $map[$k] }
+  foreach ($srcId in $pipelineNotebookMap.Keys) {
+    $nm = $pipelineNotebookMap[$srcId]
+    if ($nbIds.ContainsKey($nm)) { $pipeMap[$srcId] = $nbIds[$nm] }
+    else { Log "  note: pipeline references notebook '$nm' which was not created - reference left unbound" "Yellow" }
   }
   # Pipeline(s)
   Get-ChildItem (Join-Path $Here "fabric\pipelines") -Directory -ErrorAction SilentlyContinue | ForEach-Object {
     $pdir = $_
-    $def = BuildDefinition $pdir.FullName $map
+    $def = BuildDefinition $pdir.FullName $pipeMap
     try {
       $item = UpsertItem $ws "dataPipelines" $pdir.Name $def
       Log "  pipeline: $($pdir.Name)"
