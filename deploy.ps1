@@ -27,7 +27,8 @@ param(
   [switch]$Interactive,                  # discover + prompt for tenant/subscription/capacity/region/hosting, then deploy
   [switch]$Teardown,                     # remove the Fabric workspace + Azure resource groups created by this deploy
   [switch]$DataPlane,                     # opt-in bolt-on: wire the PI->Fabric forwarder (bolt-ons/data-plane) after deploy
-  [switch]$RegisterProviders,             # auto-register any required Azure resource providers that are NotRegistered
+  [switch]$RegisterProviders,             # force provider registration on (default: on unless -SkipProviderRegister)
+  [switch]$SkipProviderRegister,          # do NOT auto-register Azure resource providers in preflight
   [switch]$SkipPreflight,                 # skip the provider + permission preflight checks
   [string]$TeardownWorkspaceId,          # optional: tear down THIS specific workspace id (else resolved by config name)
   [string[]]$TeardownResourceGroups      # optional: resource groups to delete during teardown (else foundry+chatAgent from config)
@@ -1585,14 +1586,19 @@ function Phase-Governance {
 }
 
 # ============================ PHASE: preflight ================================
-# Verifies the Azure resource providers the deploy needs are registered, optionally
-# registers them (-RegisterProviders / config.preflight.registerProviders=true), and
-# reports the signed-in identity's role assignments so a permission gap is visible BEFORE
+# Verifies the Azure resource providers the deploy needs are registered, auto-registers any
+# that are NotRegistered by DEFAULT (opt out: -SkipProviderRegister / preflight.registerProviders=false),
+# and reports the signed-in identity's role assignments so a permission gap is visible BEFORE
 # 20-40 min of provisioning. Non-fatal by design: it warns and continues so an operator
 # who has rights scoped at a resource-group (not subscription) level isn't hard-blocked.
 function Phase-Preflight {
   Log "PHASE preflight: Azure providers + account permissions"
-  $auto = $RegisterProviders -or ($cfg.preflight -and $cfg.preflight.registerProviders -eq $true)
+  # Auto-register required providers by DEFAULT — registration is free, idempotent, and
+  # required for the resources this deploy creates. Opt out with -SkipProviderRegister or
+  # config.preflight.registerProviders=false. -RegisterProviders forces it on.
+  $auto = -not $SkipProviderRegister
+  if ($cfg.preflight -and $cfg.preflight.registerProviders -eq $false) { $auto = $false }
+  if ($RegisterProviders) { $auto = $true }
 
   # Provider -> which phase(s) need it. Only the ones whose phase will actually run are checked.
   $providerNeeds = @(
@@ -1602,6 +1608,7 @@ function Phase-Preflight {
     @{ ns='Microsoft.OperationalInsights';phases=@('chatagent'); why='Container Apps environment logs' }
   )
   $notReady = @()
+  $pending = @()
   foreach ($p in $providerNeeds) {
     if (-not ($p.phases | Where-Object { Should $_ })) { continue }   # phase won't run -> provider irrelevant
     $reg = AzTry { az provider show -n $p.ns --query registrationState -o tsv }
@@ -1610,17 +1617,25 @@ function Phase-Preflight {
     if ($auto) {
       Log "  provider $($p.ns): $reg -> registering (needed to $($p.why))..." "Yellow"
       az provider register -n $p.ns -o none 2>$null
-      $done = $false
-      for ($i=0; $i -lt 30; $i++) {                    # up to ~5 min; registration is usually < 2 min
-        Start-Sleep -Seconds 10
-        if ((AzTry { az provider show -n $p.ns --query registrationState -o tsv }) -eq 'Registered') { $done = $true; break }
-      }
-      if ($done) { Log "  provider $($p.ns): Registered" "Green" }
-      else { Log "  provider $($p.ns): still not Registered after wait - the '$($p.phases -join "/")' phase may fail" "Yellow"; $notReady += $p.ns }
+      $pending += $p
     } else {
       Log "  provider $($p.ns): $reg (needed to $($p.why))" "Yellow"
       $notReady += $p.ns
     }
+  }
+  # Bounded, combined wait for the fired registrations (usually 1-2 min; always well before
+  # the foundry/chatagent phases run ~20 min later).
+  if ($pending.Count) {
+    for ($i=0; $i -lt 18 -and $pending.Count; $i++) {   # ~3 min cap across ALL providers
+      Start-Sleep -Seconds 10
+      $still = @()
+      foreach ($p in $pending) {
+        if ((AzTry { az provider show -n $p.ns --query registrationState -o tsv }) -eq 'Registered') { Log "  provider $($p.ns): Registered" "Green" }
+        else { $still += $p }
+      }
+      $pending = $still
+    }
+    foreach ($p in $pending) { Log "  provider $($p.ns): registration still in progress - typically finishes before the '$($p.phases -join "/")' phase" "Yellow"; $notReady += $p.ns }
   }
   if ($notReady.Count -and -not $auto) {
     Log "  $($notReady.Count) provider(s) not registered. Re-run with -RegisterProviders (or set preflight.registerProviders=true), or register manually:" "Yellow"
