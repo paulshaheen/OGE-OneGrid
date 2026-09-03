@@ -7,20 +7,36 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn, execFile } = require('child_process');
 
 const PORT = process.env.DEPLOY_UI_PORT || 7333;
 const ROOT = path.resolve(__dirname, '..');          // solution root
 const CONFIG_PATH = path.join(ROOT, 'config.json');
+const LOG_DIR = path.join(os.tmpdir(), 'onegrid-logs');   // persistent, survives wizard re-extract
 
 let deployChild = null;          // active deploy process
 const sseClients = new Set();    // connected log listeners
 const logBuffer = [];            // replay for late joiners
 let lastDemo = null;             // { notebookId, jobUrl, startedAt } for status polling
+let currentLogFile = null;       // on-disk copy of the current run's full log
+
+// Begin a fresh on-disk log for a run (deploy/dataplane/teardown) and announce its path.
+function startLogFile(kind) {
+  logBuffer.length = 0;
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    currentLogFile = path.join(LOG_DIR, `onegrid-${kind}-${ts}.log`);
+    fs.writeFileSync(currentLogFile, '');
+    broadcast(`Full log file: ${currentLogFile}`);
+  } catch (e) { currentLogFile = null; }
+}
 
 function broadcast(line) {
   logBuffer.push(line);
   if (logBuffer.length > 5000) logBuffer.shift();
+  if (currentLogFile) { try { fs.appendFileSync(currentLogFile, line + '\r\n'); } catch (e) {} }
   const payload = `data: ${JSON.stringify({ line })}\n\n`;
   for (const res of sseClients) { try { res.write(payload); } catch (e) {} }
 }
@@ -199,7 +215,7 @@ const server = http.createServer(async (req, res) => {
       let cfg;
       try { cfg = JSON.parse(body); } catch (e) { return send(res, 400, { error: 'bad config' }); }
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
-      logBuffer.length = 0;
+      startLogFile('deploy');
       broadcast('=== Starting deployment (this can take 20-40 min) ===');
       const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH];
       if (cfg._skipData) args.push('-SkipData');
@@ -251,7 +267,7 @@ const server = http.createServer(async (req, res) => {
           fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
         } catch (e) { return send(res, 400, { error: 'bad data-plane config: ' + String(e).slice(0, 200) }); }
       }
-      logBuffer.length = 0;
+      startLogFile('dataplane');
       broadcast('=== Data Plane: building + running the selected forwarders locally ===');
       const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-ConfigPath', CONFIG_PATH, '-Only', 'dataplane'];
       deployChild = spawn('powershell', args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
@@ -316,7 +332,7 @@ const server = http.createServer(async (req, res) => {
       // The picker supplies the workspace + resource groups explicitly, so a saved
       // config.json is only needed when nothing was selected.
       if (!haveConfig && !sel.workspaceId) return send(res, 400, { error: 'Nothing to tear down: no saved config.json and no deployment selected.' });
-      logBuffer.length = 0;
+      startLogFile('teardown');
       broadcast('=== Starting teardown (removing the selected Fabric workspace + resource groups) ===');
       const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'deploy.ps1'), '-Teardown'];
       if (haveConfig) args.push('-ConfigPath', CONFIG_PATH);
