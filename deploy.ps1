@@ -1021,19 +1021,24 @@ function Phase-ChatAgent {
     az acr build --registry $acr --image ($app + ':' + $tag) --file (Join-Path $here 'Dockerfile') $here *> $log 2>&1
   } -ArgumentList $acrName,$app,$tag,$Here,$buildLog
   $built = $false
+  # The 'az acr build' CLIENT reliably crashes on Windows when it prints its success glyph
+  # (U+2713) to a cp1252 console (even with output redirected), so the background job "exits
+  # without success" while the SERVER build is still running. Do NOT treat that as failure:
+  # track the authoritative ACR RUN status to completion. Only give up if the client exits
+  # and no run ever registers (the build genuinely never started).
+  $clientGoneAt = $null
   for ($i=0; $i -lt 75; $i++) {
     Start-Sleep -Seconds 20
     $st = AzTry { az acr task list-runs --registry $acrName --top 1 --query "[0].status" -o tsv }
     if ($st -eq 'Succeeded') { $built = $true; break }
     if ($st -in @('Failed','Canceled','Error','Timeout')) { Log "  ACR build $st (log: $buildLog)" "Red"; break }
-    # If the build client (background job) has exited, stop waiting instead of polling for the
-    # full 25 min: this happens when 'az acr build' failed before it ever queued a run (e.g.
-    # provider not registered, context upload rejected), which otherwise shows status= forever.
-    if ((Get-Job -Id $bjob.Id -ErrorAction SilentlyContinue).State -in @('Completed','Failed','Stopped')) {
-      $st = AzTry { az acr task list-runs --registry $acrName --top 1 --query "[0].status" -o tsv }
-      if ($st -eq 'Succeeded') { $built = $true }
-      else { Log "  acr build client exited without a successful run (last status=$([string]$st))" "Red" }
-      break
+    if ($null -eq $clientGoneAt -and (Get-Job -Id $bjob.Id -ErrorAction SilentlyContinue).State -in @('Completed','Failed','Stopped')) {
+      $clientGoneAt = $i
+      Log "  (acr build client exited - likely the harmless CLI glyph crash; tracking the server run to completion)" "DarkGray"
+    }
+    # Client gone AND still no run queued after an ~80s grace period => it never started.
+    if ($null -ne $clientGoneAt -and (-not $st) -and (($i - $clientGoneAt) -ge 4)) {
+      Log "  acr build never started (no run queued after client exit) - check Microsoft.ContainerRegistry registration / build context" "Red"; break
     }
     if ($i % 3 -eq 0) { Log "  ...building image ($([int]($i*20))s elapsed, status=$([string]$st))" }
   }
