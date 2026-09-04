@@ -665,11 +665,19 @@ function Ensure-DeploySP {
   $appName  = "$($cfg.chatAgent.appName)-refresh-sp"
   $appId = AzTry { az ad app list --display-name $appName --query "[0].appId" -o tsv }
   if (-not $appId) {
+    # Reuse a refresh SP the caller already OWNS from a prior deploy (its name carries a
+    # different deploy suffix). App owners can reset their own app's secret even WITHOUT
+    # tenant-wide app-registration rights, so this recovers refresh for a deployer who can't
+    # create new apps (e.g. 'Users can register applications' = No) but deployed before.
+    $appId = AzTry { az ad app list --show-mine --query "[?ends_with(displayName,'-refresh-sp')].appId | [0]" -o tsv }
+    if ($appId) { Log "  reusing an existing refresh SP you own from a prior deploy ($appId)" "Yellow" }
+  }
+  if (-not $appId) {
     $appId = AzTry { az ad app create --display-name $appName --sign-in-audience AzureADMyOrg --query appId -o tsv }
-    if (-not $appId) { Log "  could not create app registration (insufficient AAD permission?) - supply config.fixedIdentity manually" "Red"; return @{} }
+    if (-not $appId) { Log "  could not create or find a refresh app registration (no app-registration rights and no prior refresh SP you own) - supply config.fixedIdentity (a pre-created SP) manually" "Red"; return @{} }
     Log "  created app registration '$appName' ($appId)"
     Start-Sleep -Seconds 15   # AAD propagation
-  } else { Log "  reusing app registration '$appName' ($appId)" }
+  } else { Log "  using refresh app registration ($appId)" }
   $spOid = AzTry { az ad sp show --id $appId --query id -o tsv }
   if (-not $spOid) { $spOid = AzTry { az ad sp create --id $appId --query id -o tsv }; Start-Sleep -Seconds 8 }
   $secret = AzTry { az ad app credential reset --id $appId --display-name deploy-refresh --years 1 --query password -o tsv }
