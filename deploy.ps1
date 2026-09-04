@@ -734,9 +734,10 @@ function Phase-Semantic {
         Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$ws/datasets/$($sm.id)/Default.BindToGateway" -Method Post -Headers @{ Authorization="Bearer $pbi"; "Content-Type"="application/json" } -Body (@{ gatewayObjectId=$conn.id; datasourceObjectIds=@($conn.id) } | ConvertTo-Json) | Out-Null
         Invoke-RestMethod -Uri "https://api.powerbi.com/v1.0/myorg/groups/$ws/datasets/$($sm.id)/refreshes" -Method Post -Headers @{ Authorization="Bearer $pbi"; "Content-Type"="application/json" } -Body '{"type":"full","notifyOption":"NoNotification"}' | Out-Null
         Log "  semantic model connection bound + refresh started" "Green"
-      } catch { $de = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }; Log "  semantic bind/refresh: $de (do manually - see README)" "Yellow" }
+      } catch { $de = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { $_.Exception.Message }; Log "  semantic bind/refresh: $de (do manually - see README)" "Yellow"; $script:phaseErrors += "semantic : Import model NOT refreshed ($de). The report/app will be EMPTY until it is refreshed - see README, or re-run -Only semantic once fixed." }
     } else {
       Log "  (no fixedIdentity in config - bind connection + refresh manually; see README)" "Yellow"
+      $script:phaseErrors += "semantic : Import model 'semantic-main-import' was NOT refreshed - couldn't create the refresh service principal (insufficient Entra app-registration rights). The report/app will be EMPTY. Fix: add config.fixedIdentity (a pre-created SP: tenantId/clientId/clientSecret) OR grant the deployer app-registration rights, then re-run: deploy.ps1 -Only semantic. Or refresh 'semantic-main-import' manually in Fabric."
     }
   }
   # Report
